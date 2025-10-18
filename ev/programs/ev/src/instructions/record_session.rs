@@ -1,0 +1,86 @@
+use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo};
+use anchor_spl::associated_token::AssociatedToken;
+use crate::{state::*, events::*};
+
+#[derive(Accounts)]
+#[instruction(charger_code: String)]
+pub struct RecordSession<'info> {
+    #[account(mut, seeds=[b"platform"], bump, has_one = mint)]
+    pub platform_state: Account<'info, PlatformState>,
+    
+    #[account(mut, seeds=[b"driver", driver.key().as_ref()], bump)]
+    pub driver_account: Account<'info, DriverAccount>,
+    
+    #[account(init, payer = driver, space = 8 + ChargingSession::INIT_SPACE)]
+    pub session: Account<'info, ChargingSession>,
+    
+    #[account(mut)]
+    pub driver: Signer<'info>,
+    
+    /// CHECK: Mint authority PDA
+    #[account(seeds=[b"mint_authority"], bump)]
+    pub mint_authority: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub mint: Account<'info, Mint>,
+    
+    #[account(init_if_needed, payer = driver, associated_token::mint = mint, associated_token::authority = driver)]
+    pub driver_token_account: Account<'info, TokenAccount>,
+    
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handler(ctx: Context<RecordSession>, charger_code: String, energy_used: u64) -> Result<()> {
+    let points = energy_used / 10; 
+    
+    // Derive mint authority bump for signing
+    let (mint_authority_key, mint_authority_bump) = 
+        Pubkey::find_program_address(&[b"mint_authority"], ctx.program_id);
+    
+    require_keys_eq!(
+        mint_authority_key,
+        ctx.accounts.mint_authority.key(),
+    );
+    
+    let mint_authority_seeds = &[
+        b"mint_authority".as_ref(),
+        &[mint_authority_bump],
+    ];
+    let signer_seeds = &[&mint_authority_seeds[..]];
+    
+    // Mint tokens to driver using platform's mint authority
+    let cpi_ctx = CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        MintTo {
+            mint: ctx.accounts.mint.to_account_info(),
+            to: ctx.accounts.driver_token_account.to_account_info(),
+            authority: ctx.accounts.mint_authority.to_account_info(),
+        },
+        signer_seeds,
+    );
+    token::mint_to(cpi_ctx, points)?;
+
+    let session = &mut ctx.accounts.session;
+    session.driver = ctx.accounts.driver.key();
+    session.charger_code = charger_code.clone();
+    session.energy_used = energy_used;
+    session.points_earned = points;
+    session.timestamp = Clock::get()?.unix_timestamp;
+
+    let driver_acc = &mut ctx.accounts.driver_account;
+    driver_acc.total_points += points;
+    driver_acc.total_energy += energy_used;
+    driver_acc.session_count += 1;
+
+    emit!(SessionRecorded {
+        driver: session.driver,
+        charger_code,
+        energy_used,
+        points,
+    });
+
+    Ok(())
+}

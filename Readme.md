@@ -1,0 +1,3 @@
+Program ID: F9arbAcT5maXyWD51QyCviogmSXTJLKgvaaP44YscwUt
+Platform State: 6QQzocqdvf6yqk7kkSXvxDy9LR3FE9MfpBjwK85jw3kU
+Mint Account: Es1SZLqTFfTWSZo9JacYp6qRW8qcXAh9RiN39BvFJttR
