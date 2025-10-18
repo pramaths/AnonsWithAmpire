@@ -33,9 +33,18 @@ pub struct RecordSession<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<RecordSession>, charger_code: String, energy_used: u64) -> Result<()> {
-    let points = energy_used / 10; 
-    
+pub fn handler(
+    ctx: Context<RecordSession>,
+    charger_code: String,
+    energy_used_milli_kwh: u64,
+) -> Result<()> {
+    // We expect energy_used to be in milli-kWh to preserve precision.
+    // 1 DECH token = 1 kWh = 1,000 milli-kWh.
+    // Our token has 6 decimals, so 1 DECH = 1,000,000 smallest units.
+    // points = (energy_milli_kwh / 1000) * 1,000,000
+    // Simplified: points = energy_milli_kwh * 1000
+    let points = energy_used_milli_kwh.checked_mul(1000).unwrap();
+
     // Derive mint authority bump for signing
     let (mint_authority_key, mint_authority_bump) = 
         Pubkey::find_program_address(&[b"mint_authority"], ctx.program_id);
@@ -63,22 +72,26 @@ pub fn handler(ctx: Context<RecordSession>, charger_code: String, energy_used: u
     );
     token::mint_to(cpi_ctx, points)?;
 
-    let session = &mut ctx.accounts.session;
-    session.driver = ctx.accounts.driver.key();
-    session.charger_code = charger_code.clone();
-    session.energy_used = energy_used;
-    session.points_earned = points;
-    session.timestamp = Clock::get()?.unix_timestamp;
+    // Convert energy back to kWh for storage and event logging
+    let energy_used_kwh = energy_used_milli_kwh.checked_div(1000).unwrap_or(0);
 
+    // Record the session details
+    ctx.accounts.session.driver = ctx.accounts.driver.key();
+    ctx.accounts.session.charger_code = charger_code.clone();
+    ctx.accounts.session.energy_used = energy_used_kwh;
+    ctx.accounts.session.timestamp = Clock::get()?.unix_timestamp;
+
+    // Update driver's aggregate stats
     let driver_acc = &mut ctx.accounts.driver_account;
-    driver_acc.total_points += points;
-    driver_acc.total_energy += energy_used;
-    driver_acc.session_count += 1;
+    driver_acc.total_points = driver_acc.total_points.checked_add(points).unwrap();
+    driver_acc.total_energy = driver_acc.total_energy.checked_add(energy_used_kwh).unwrap();
+    driver_acc.session_count = driver_acc.session_count.checked_add(1).unwrap();
 
+    // Emit an event
     emit!(SessionRecorded {
-        driver: session.driver,
+        driver: ctx.accounts.driver.key(),
         charger_code,
-        energy_used,
+        energy_used: energy_used_kwh,
         points,
     });
 

@@ -8,11 +8,14 @@ skip-lint = false
 [programs.localnet]
 ev = "F9arbAcT5maXyWD51QyCviogmSXTJLKgvaaP44YscwUt"
 
+[programs.devnet]
+ev = "5V11nhm8AMcC8nn1VmyjqXvwLms5pGJVdVSco7FsahwX"
+
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

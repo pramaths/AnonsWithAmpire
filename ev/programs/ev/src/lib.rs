@@ -7,7 +7,7 @@ pub mod errors;
 
 use instructions::*;
 
-declare_id!("F9arbAcT5maXyWD51QyCviogmSXTJLKgvaaP44YscwUt");
+declare_id!("5V11nhm8AMcC8nn1VmyjqXvwLms5pGJVdVSco7FsahwX");
 
 #[program]
 pub mod ev {

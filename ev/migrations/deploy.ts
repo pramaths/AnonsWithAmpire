@@ -25,6 +25,16 @@ module.exports = async function (provider: anchor.AnchorProvider) {
     program.programId
   );
 
+  const platformAccount = await program.account.platformState.fetchNullable(platformState);
+
+  if (platformAccount) {
+    console.log("Platform already initialized.");
+    console.log(`Program ID: ${program.programId}`);
+    console.log(`Platform State: ${platformState}`);
+    console.log(`Mint Account: ${platformAccount.mint}`);
+    return;
+  }
+
   console.log("Initializing platform...");
   const feeBps = new anchor.BN(100); // 1% fee
   
