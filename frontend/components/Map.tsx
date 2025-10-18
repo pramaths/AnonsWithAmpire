@@ -7,12 +7,18 @@ import type { ChargePoint } from '@/types';
 import dummyData from '../app/dummy_data.json';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
+import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
+
 
 type ActiveSession = {
   sessionId: string;
   energyUsed: number;
   chargerCode: string;
   pricePerPoint: string;
+  startTime: number;
+  elapsedTime: number;
+  pointsEarned: number;
 };
 
 const MapComponent = () => {
@@ -23,53 +29,101 @@ const MapComponent = () => {
   const { publicKey, sendTransaction } = useWallet();
 
   useEffect(() => {
-    setChargePoints(dummyData.charge_points);
+    const fetchChargePoints = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/charge_points');
+        if (!response.ok) {
+          throw new Error('Failed to fetch charge points');
+        }
+        const data = await response.json();
+        setChargePoints(data.charge_points);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'An unknown error occurred');
+      }
+    };
+
+    fetchChargePoints();
   }, []);
+
+  const formatElapsedTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
 
   const handleStartCharging = async (charger: ChargePoint) => {
     if (!publicKey) {
-      alert("Please connect your wallet first.");
+      toast.error("Please connect your wallet first.");
       return;
     }
 
-    try {
-      const response = await fetch('http://localhost:3001/api/sessions/start', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          driverPublicKey: publicKey.toBase58(),
-          chargerCode: charger.code 
-        }),
-      });
+    const startPromise = fetch('http://localhost:3001/api/sessions/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        driverPublicKey: publicKey.toBase58(),
+        chargerCode: charger.code
+      }),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start session');
-      }
-
-      const { sessionId, pricePerPoint } = await response.json();
-      
-      setActiveSession({ sessionId, energyUsed: 0, chargerCode: charger.code, pricePerPoint });
-
-      const intervalId = setInterval(async () => {
-        try {
-          const statusResponse = await fetch(`http://localhost:3001/api/sessions/${sessionId}/status`);
-          if (statusResponse.ok) {
-            const { energyUsed } = await statusResponse.json();
-            setActiveSession(prev => prev ? { ...prev, energyUsed } : null);
-          }
-        } catch (error) {
-          console.error('Failed to fetch session status:', error);
+    toast.promise(startPromise, {
+      loading: 'Starting session...',
+      success: async (response) => {
+        if (response.status === 409) {
+          const { transaction: serializedTx, message } = await response.json();
+          toast.info(message);
+          
+          const tx = Transaction.from(Buffer.from(serializedTx, 'base64'));
+          const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL!, 'confirmed');
+          
+          const signPromise = sendTransaction(tx, connection)
+            .then(sig => connection.confirmTransaction(sig, 'confirmed'))
+            .then(() => {
+                // Retry starting the session now that the driver is registered
+                handleStartCharging(charger);
+            });
+            
+            return "Please approve the registration in your wallet. Retrying session start...";
         }
-      }, 2000);
-      setPollingIntervalId(intervalId);
 
-    } catch (error) {
-      console.error('Error starting session:', error);
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
-    }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to start session');
+        }
+
+        const { sessionId, pricePerPoint } = await response.json();
+        
+        const initialSessionState = {
+          sessionId, 
+          energyUsed: 0, 
+          chargerCode: charger.code, 
+          pricePerPoint, 
+          startTime: Date.now(),
+          elapsedTime: 0,
+          pointsEarned: 0,
+        };
+        setActiveSession(initialSessionState);
+
+        const intervalId = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`http://localhost:3001/api/sessions/${sessionId}/status`);
+            if (statusResponse.ok) {
+              const sessionData = await statusResponse.json();
+              setActiveSession(prev => prev ? { ...prev, ...sessionData } : null);
+            }
+          } catch (error) {
+            console.error('Failed to fetch session status:', error);
+          }
+        }, 2000);
+        setPollingIntervalId(intervalId);
+        
+        return "Session started successfully!";
+      },
+      error: (err) => `Error: ${err.message}`,
+    });
   };
 
   const handleStopCharging = async () => {
@@ -80,38 +134,42 @@ const MapComponent = () => {
       setPollingIntervalId(null);
     }
 
-    try {
-      const response = await fetch('http://localhost:3001/api/sessions/stop', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+    const stopPromise = fetch('http://localhost:3001/api/sessions/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: activeSession.sessionId,
+        charger_code: activeSession.chargerCode,
+      }),
+    });
+    
+    toast.promise(stopPromise, {
+        loading: 'Preparing transaction...',
+        success: async (response) => {
+            if (!response.ok) {
+                throw new Error('Failed to create transaction');
+            }
+            const { transaction: serializedTx } = await response.json();
+            const tx = Transaction.from(Buffer.from(serializedTx, 'base64'));
+            
+            const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL!, 'confirmed');
+            
+            const signPromise = sendTransaction(tx, connection)
+                .then(sig => connection.confirmTransaction(sig, 'confirmed'));
+
+            toast.promise(signPromise, {
+                loading: 'Please approve the transaction in your wallet...',
+                success: () => {
+                    setActiveSession(null);
+                    return 'Session stopped and recorded successfully!';
+                },
+                error: 'Transaction failed or was rejected.'
+            });
+            
+            return 'Transaction created. Please sign in your wallet.';
         },
-        body: JSON.stringify({
-          sessionId: activeSession.sessionId,
-          charger_code: activeSession.chargerCode,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to stop session');
-      }
-
-      const { transaction: serializedTx } = await response.json();
-      const tx = Transaction.from(Buffer.from(serializedTx, 'base64'));
-      
-      const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL!);
-      const signature = await sendTransaction(tx, connection);
-      
-      await connection.confirmTransaction(signature, 'confirmed');
-
-      alert(`Session stopped! Transaction: ${signature}`);
-      
-    } catch (error) {
-      console.error('Error stopping session:', error);
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setActiveSession(null);
-    }
+        error: (err) => `Error: ${err.message}`,
+    });
   };
 
   const getPinColor = (status: string) => {
@@ -187,26 +245,31 @@ const MapComponent = () => {
                 <span className="text-slate-400">Rate</span>
                 <span className="text-lime-400 font-semibold">₹{selectedCharger.pricing.energy_based.rate}/kWh</span>
               </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-slate-400">Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  selectedCharger.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                  selectedCharger.status === 'occupied' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-gray-500/20 text-gray-400'
-                }`}>
-                  {selectedCharger.status.toUpperCase()}
-                </span>
-              </div>
-              {activeSession && activeSession.chargerCode === selectedCharger.code && (
+              {activeSession && activeSession.chargerCode === selectedCharger.code ? (
+                <>
+                  <div className="pt-3 space-y-2">
+                    <Progress value={(activeSession.elapsedTime / (60 * 1000)) * 100} className="w-full" />
+                    <div className="flex justify-between items-center text-xs text-slate-400">
+                      <span>TIME</span>
+                      <span>{formatElapsedTime(activeSession.elapsedTime)}</span>
+                    </div>
+                    <div className="text-sm">
+                                    <p>⚡️ Energy Delivered: {activeSession.energyUsed.toFixed(2)} kWh</p>
+                                    <p>💨 CO2 Saved: {activeSession.pointsEarned.toFixed(2)} kg</p>
+                                    <p>💰 Points Earned: {activeSession.pointsEarned.toFixed(2)} DECH</p>
+                                </div>
+                  </div>
+                </>
+              ) : (
                 <div className="flex justify-between items-center py-2">
-                  <span className="text-slate-400">Energy Delivered</span>
-                  <span className="text-white font-semibold">{activeSession.energyUsed.toFixed(2)} kWh</span>
-                </div>
-              )}
-              {activeSession && activeSession.chargerCode === selectedCharger.code && (
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-slate-400">Rate per Point</span>
-                  <span className="text-lime-400 font-semibold">{activeSession.pricePerPoint} lamports</span>
+                  <span className="text-slate-400">Status</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    selectedCharger.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                    selectedCharger.status === 'occupied' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    {selectedCharger.status.toUpperCase()}
+                  </span>
                 </div>
               )}
             </div>

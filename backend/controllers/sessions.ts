@@ -17,6 +17,22 @@ interface Session {
 
 const activeSessions: { [sessionId: string]: Session } = {};
 
+// Cleanup interval to remove stale sessions (e.g., older than 12 hours)
+setInterval(() => {
+    const now = Date.now();
+    const twelveHours = 12 * 60 * 60 * 1000;
+    for (const sessionId in activeSessions) {
+        const session = activeSessions[sessionId];
+        if (session && now - session.startTime > twelveHours) {
+            if (session.intervalId) {
+                clearInterval(session.intervalId);
+            }
+            delete activeSessions[sessionId];
+            console.log(`Cleaned up stale session ${sessionId}`);
+        }
+    }
+}, 3600000); // Run every hour
+
 export const startSession = async (req: Request, res: Response, program: Program<Ev>, adminKeypair: Keypair, connection: Connection) => {
     try {
         const { driverPublicKey, chargerCode } = req.body;
@@ -101,11 +117,17 @@ export const getSessionStatus = (req: Request, res: Response) => {
         return res.status(404).json({ error: 'Session not found.' });
     }
 
+    const elapsedTime = Date.now() - session.startTime;
+    // On-chain logic is now 1 kWh = 1 DECH. energyUsed is in kWh.
+    const pointsEarned = session.energyUsed * 1000000;
+
     res.status(200).json({
         sessionId: session.sessionId,
         startTime: session.startTime,
         energyUsed: session.energyUsed,
         chargerCode: session.chargerCode,
+        elapsedTime,
+        pointsEarned,
     });
 };
 
@@ -125,7 +147,7 @@ export const stopSession = async (req: Request, res: Response, program: Program<
         delete activeSessions[sessionId];
 
         const driverPubkey = new PublicKey(session.driverPublicKey);
-        const energy_used = Math.floor(session.energyUsed);
+        const energy_used_milli_kwh = Math.floor(session.energyUsed * 1000000);
 
 
         const [platformStatePda] = PublicKey.findProgramAddressSync(
@@ -149,7 +171,7 @@ export const stopSession = async (req: Request, res: Response, program: Program<
         const sessionKeypair = Keypair.generate();
 
         const tx = await program.methods
-            .recordSession(charger_code, new BN(energy_used))
+            .recordSession(charger_code, new BN(energy_used_milli_kwh))
             .accountsStrict({
                 platformState: platformStatePda,
                 driverAccount: driverPda,

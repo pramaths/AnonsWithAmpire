@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/ev.json`.
  */
 export type Ev = {
-  "address": "F9arbAcT5maXyWD51QyCviogmSXTJLKgvaaP44YscwUt",
+  "address": "5V11nhm8AMcC8nn1VmyjqXvwLms5pGJVdVSco7FsahwX",
   "metadata": {
     "name": "ev",
     "version": "0.1.0",
