@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import anchor, { Program } from '@coral-xyz/anchor';
 const { BN } = anchor;
-import { Connection, PublicKey, Keypair, Transaction, SystemProgram } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair, SystemProgram } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import type { Ev } from '../ev.js';
 import { randomBytes } from 'crypto';
@@ -33,7 +33,7 @@ setInterval(() => {
     }
 }, 3600000); // Run every hour
 
-export const startSession = async (req: Request, res: Response, program: Program<Ev>, adminKeypair: Keypair, connection: Connection) => {
+export const startSession = async (req: Request, res: Response, program: Program<Ev>, adminKeypair: Keypair, _connection: Connection) => {
     try {
         const { driverPublicKey, chargerCode } = req.body;
         if (!driverPublicKey || !chargerCode) {
@@ -107,6 +107,7 @@ export const startSession = async (req: Request, res: Response, program: Program
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };
 
 export const getSessionStatus = (req: Request, res: Response) => {
@@ -129,6 +130,7 @@ export const getSessionStatus = (req: Request, res: Response) => {
         elapsedTime,
         pointsEarned,
     });
+    return;
 };
 
 export const stopSession = async (req: Request, res: Response, program: Program<Ev>, connection: Connection) => {
@@ -206,6 +208,7 @@ export const stopSession = async (req: Request, res: Response, program: Program<
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };
 
 export const getSessionHistory = async (req: Request, res: Response, program: Program<Ev>) => {
@@ -254,9 +257,10 @@ export const getSessionHistory = async (req: Request, res: Response, program: Pr
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };
 
-export const getLiveSessions = (req: Request, res: Response) => {
+export const getLiveSessions = (_req: Request, res: Response) => {
     try {
         const allLiveSessions = Object.values(activeSessions);
         res.status(200).json(allLiveSessions);
@@ -268,4 +272,5 @@ export const getLiveSessions = (req: Request, res: Response) => {
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { Program } from '@coral-xyz/anchor';
 import type { Ev } from '../ev.js';
-import { getAssociatedTokenAddressSync, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { Connection, PublicKey } from '@solana/web3.js';
 import pkg from '@coral-xyz/anchor';
 const {  BN } = pkg;
@@ -16,7 +16,7 @@ interface FormattedDriverAccount {
     active: boolean;
 }
 
-export const getAllDrivers = async (req: Request, res: Response, program: Program<Ev>) => {
+export const getAllDrivers = async (_req: Request, res: Response, program: Program<Ev>) => {
     try {
         const driverAccounts = await program.account.driverAccount.all();
 
@@ -43,6 +43,7 @@ export const getAllDrivers = async (req: Request, res: Response, program: Progra
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };
 
 export const createDriverApprovalTransaction = async (req: Request, res: Response, program: Program<Ev>, connection: Connection) => {
@@ -104,4 +105,5 @@ export const createDriverApprovalTransaction = async (req: Request, res: Respons
             res.status(500).json({ error: 'An unknown error occurred.' });
         }
     }
+    return;
 };

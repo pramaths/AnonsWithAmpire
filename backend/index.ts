@@ -42,9 +42,9 @@ const logger = winston.createLogger({
 app.use(cors());
 app.use(express.json());
 
-const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL!;
-const PROGRAM_ID = process.env.PROGRAM_ID!;
-const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY!;
+const SOLANA_RPC_URL = process.env['SOLANA_RPC_URL']!;
+const PROGRAM_ID = process.env['PROGRAM_ID']!;
+const ADMIN_PRIVATE_KEY = process.env['ADMIN_PRIVATE_KEY']!;
 
 if (!SOLANA_RPC_URL || !PROGRAM_ID || !ADMIN_PRIVATE_KEY) {
     throw new Error("Missing required environment variables!");
@@ -56,12 +56,12 @@ const wallet = new anchor.Wallet(adminKeypair);
 const provider = new anchor.AnchorProvider(connection, wallet, anchor.AnchorProvider.defaultOptions());
 const program = new anchor.Program<Ev>(idl as Ev, provider);
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
     logger.info('Root endpoint hit');
     res.send('Welcome to the EV Charge Points API!');
 });
 
-app.get('/api/config', (req, res) => {
+app.get('/api/config', (_req, res) => {
     if (platformState) {
         res.json({
             mint: platformState.mint.toBase58()
@@ -71,7 +71,7 @@ app.get('/api/config', (req, res) => {
     }
 });
 
-app.get('/api/charge_points', (req: Request, res: Response) => {
+app.get('/api/charge_points', (_req: Request, res: Response) => {
   logger.info('Request for charge points data');
   res.json(chargePointsData);
 });
@@ -87,7 +87,7 @@ app.get('/api/drivers', (req, res) => getAllDrivers(req, res, program));
 app.post('/api/drivers/approve-transaction', (req, res) => createDriverApprovalTransaction(req, res, program, connection));
 
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env['PORT'] || 3001;
 
 app.listen(PORT, async () => {
     await loadPlatformState();
