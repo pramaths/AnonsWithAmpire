@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import type { Ev } from './ev.js';
-import idl from './ev.json';
+import idl from './ev.json' assert { type: "json" };
 import { startSession, getSessionStatus, stopSession, getSessionHistory, getLiveSessions } from './controllers/sessions.js';
 import { getAllDrivers, createDriverApprovalTransaction } from './controllers/drivers.js';
 import { chargePointsData } from './charge_points.js';
