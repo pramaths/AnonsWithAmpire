@@ -1,4 +1,4 @@
-{
+export const chargePointsData = {
     "charge_points": [
       {
         "code": "BERSTD34",
@@ -169,4 +169,4 @@
         ]
       }
     ]
-  }
+  };

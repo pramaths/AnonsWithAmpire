@@ -8,23 +8,12 @@ import type { Ev } from './ev.js';
 import idl from './ev.json' with { type: "json" };
 import { startSession, getSessionStatus, stopSession, getSessionHistory, getLiveSessions } from './controllers/sessions.js';
 import { getAllDrivers, createDriverApprovalTransaction } from './controllers/drivers.js';
-import { promises as fs } from 'fs';
+import { chargePointsData } from './charge_points.js';
 
 dotenv.config();
 const app = express();
 
-let chargePointsData: any = {};
 let platformState: any = null;
-
-const loadChargePoints = async () => {
-    try {
-        const data = await fs.readFile('./charge_points.json', 'utf8');
-        chargePointsData = JSON.parse(data);
-        logger.info('Successfully loaded charge points data.');
-    } catch (error) {
-        logger.error('Failed to load charge points data:', error);
-    }
-};
 
 const loadPlatformState = async () => {
     try {
@@ -101,7 +90,6 @@ app.post('/api/drivers/approve-transaction', (req, res) => createDriverApprovalT
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, async () => {
-    await loadChargePoints();
     await loadPlatformState();
     logger.info(`Server is running on http://localhost:${PORT}`);
 });
