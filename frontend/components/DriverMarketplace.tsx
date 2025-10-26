@@ -30,12 +30,12 @@ export function DriverMarketplace() {
         const fetchMintAndDrivers = async () => {
             try {
                 // Fetch the mint address from the new config endpoint
-                const configRes = await fetch('http://localhost:3001/api/config');
+                const configRes = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config');
                 const { mint } = await configRes.json();
                 const mintPublicKey = new PublicKey(mint);
 
                 // Fetch the drivers
-                const driversRes = await fetch('http://localhost:3001/api/drivers');
+                const driversRes = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/drivers');
                 const driversData: Driver[] = await driversRes.json();
 
                 // For each driver, fetch their token balance
@@ -78,7 +78,7 @@ export function DriverMarketplace() {
 
         try {
             // 1. Fetch the transaction from the backend
-            const response = await fetch('http://localhost:3001/api/drivers/approve-transaction', {
+            const response = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/drivers/approve-transaction', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ driverPublicKey: driver.driver }),

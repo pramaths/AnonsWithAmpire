@@ -19,7 +19,7 @@ const Leaderboard = () => {
     useEffect(() => {
         const fetchDrivers = async () => {
             try {
-                const response = await fetch('http://localhost:3001/api/drivers');
+                const response = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/drivers');
                 if (!response.ok) {
                     throw new Error('Failed to fetch leaderboard data');
                 }

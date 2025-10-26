@@ -50,7 +50,7 @@ const SessionsPage = () => {
 
         const pollSession = async () => {
             try {
-                const response = await fetch(`http://localhost:3001/api/sessions/${sessionId}/status`);
+                const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/${sessionId}/status`);
                 if (response.ok) {
                     const data: ActiveSession = await response.json();
                     setActiveSession(data);
@@ -81,7 +81,7 @@ const SessionsPage = () => {
     const fetchPastSessions = async (driverPublicKey: string) => {
         setIsLoadingHistory(true);
         try {
-            const response = await fetch(`http://localhost:3001/api/sessions/history/${driverPublicKey}`);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/history/${driverPublicKey}`);
             const data: PastSession[] = await response.json();
             setPastSessions(data);
         } catch (error) {

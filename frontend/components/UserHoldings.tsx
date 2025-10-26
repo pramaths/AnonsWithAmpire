@@ -15,7 +15,7 @@ const UserHoldings = () => {
             if (!publicKey) return;
 
             try {
-                const configResponse = await fetch('http://localhost:3001/api/config');
+                const configResponse = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config');
                 if (!configResponse.ok) throw new Error('Failed to fetch token mint');
                 const { mint: mintAddress } = await configResponse.json();
                 const mintPublicKey = new PublicKey(mintAddress);

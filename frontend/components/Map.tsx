@@ -32,7 +32,7 @@ const MapComponent = () => {
   useEffect(() => {
     const fetchChargePoints = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/charge_points');
+        const response = await fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/charge_points');
         if (!response.ok) {
           throw new Error('Failed to fetch charge points');
         }
@@ -59,7 +59,7 @@ const MapComponent = () => {
       return;
     }
 
-    const startPromise = fetch('http://localhost:3001/api/sessions/start', {
+    const startPromise = fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/start', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ const MapComponent = () => {
 
         const intervalId = setInterval(async () => {
           try {
-            const statusResponse = await fetch(`http://localhost:3001/api/sessions/${sessionId}/status`);
+            const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/${sessionId}/status`);
             if (statusResponse.ok) {
               const sessionData = await statusResponse.json();
               setActiveSession(prev => prev ? { ...prev, ...sessionData } : null);
@@ -136,7 +136,7 @@ const MapComponent = () => {
       setPollingIntervalId(null);
     }
 
-    const stopPromise = fetch('http://localhost:3001/api/sessions/stop', {
+    const stopPromise = fetch('${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
