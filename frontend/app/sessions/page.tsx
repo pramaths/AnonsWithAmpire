@@ -1,117 +1,117 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { Transaction, VersionedTransaction } from '@solana/web3.js';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import MintAnimation from '@/components/MintAnimation';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Clock, Zap, History, Leaf } from "lucide-react";
 import Header from '@/components/Header';
 import SustainabilityPanel from '@/components/SustainabilityPanel';
 import UserHoldings from '@/components/UserHoldings';
-import DriverMarketplace from '@/components/DriverMarketplace';
+import { DriverMarketplace } from '@/components/DriverMarketplace';
 import Leaderboard from '@/components/Leaderboard';
-import { Button } from '@/components/ui/button';
 
-interface Session {
-    id: string;
-    energy: number;
-    time: number;
-    points: number;
-    progress: number;
+interface ActiveSession {
+    sessionId: string;
+    startTime: number;
+    energyUsed: number;
+    chargerCode: string;
+    elapsedTime: number;
+    pointsEarned: number;
 }
 
-const mockSessions: Session[] = [
-    { id: 'Charger-001', energy: 1.2, time: 15, points: 24, progress: 30 },
-    { id: 'Charger-002', energy: 0.8, time: 10, points: 16, progress: 50 },
-    { id: 'Charger-003', energy: 2.5, time: 25, points: 50, progress: 75 },
-];
+interface PastSession {
+    publicKey: string;
+    driver: string;
+    energyUsed: number;
+    points: number;
+    timestamp: number;
+    chargerId: string;
+}
 
 const SessionsPage = () => {
-    const [sessions, setSessions] = useState<Session[]>(mockSessions);
-    const [isBuyerView, setIsBuyerView] = useState(true);
-    const { connection } = useConnection();
-    const { publicKey, sendTransaction } = useWallet();
+    const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+    const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [isBuyerView, setIsBuyerView] = useState(true); // State for the main view toggle
+    const { publicKey } = useWallet();
 
-    const handleStopSession = async (session: Session) => {
-        if (!publicKey) {
-            alert('Please connect your wallet to stop a session.');
+    // Effect to poll for active session status
+    useEffect(() => {
+        const sessionId = localStorage.getItem('activeSessionId');
+        if (!sessionId) {
+            setActiveSession(null);
             return;
         }
 
-        try {
-            // Step 1: Call the backend to get the transaction
-            const response = await fetch('http://localhost:3001/api/sessions/stop', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    driverPublicKey: publicKey.toBase58(),
-                    charger_code: session.id,
-                    energy_used: Math.floor(session.energy * 1000), // Assuming energy is in kWh
-                }),
-            });
-
-            const { transaction: base64Transaction } = await response.json();
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch transaction from backend.');
+        const pollSession = async () => {
+            try {
+                const response = await fetch(`http://localhost:3001/api/sessions/${sessionId}/status`);
+                if (response.ok) {
+                    const data: ActiveSession = await response.json();
+                    setActiveSession(data);
+                } else {
+                    // Session might have ended, so clear it
+                    localStorage.removeItem('activeSessionId');
+                    setActiveSession(null);
+                }
+            } catch (error) {
+                console.error("Failed to fetch session status:", error);
+                setActiveSession(null);
+                localStorage.removeItem('activeSessionId');
             }
+        };
 
-            // Step 2: Deserialize, sign, and send the transaction
-            const transactionBuffer = Buffer.from(base64Transaction, 'base64');
-            const tx = Transaction.from(transactionBuffer);
-
-            const signature = await sendTransaction(tx, connection);
-            console.log(`Transaction successful with signature: ${signature}`);
-            
-            // Step 3: Remove the session from the UI
-            setSessions(prevSessions => prevSessions.filter(s => s.id !== session.id));
-            
-            alert('Session stopped and recorded successfully!');
-
-        } catch (error) {
-            console.error('Error stopping session:', error);
-            alert('Failed to stop session. See console for details.');
-        }
-    };
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setSessions(prevSessions =>
-                prevSessions.map(session => ({
-                    ...session,
-                    energy: parseFloat((session.energy + 0.1).toFixed(1)),
-                    time: session.time + 1,
-                    points: session.points + 1,
-                    progress: Math.min(session.progress + 2, 100),
-                }))
-            );
-        }, 2000);
+        pollSession(); // Initial poll
+        const interval = setInterval(pollSession, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
     }, []);
-    
-    const totalKwh = sessions.reduce((acc, s) => acc + s.energy, 0).toFixed(1);
-    const totalPoints = sessions.reduce((acc, s) => acc + s.points, 0);
-    const inrEquivalent = (totalPoints * 0.5).toFixed(2);
+
+    const handleTabChange = (value: string) => {
+        if (value === 'history' && publicKey && pastSessions.length === 0) {
+            fetchPastSessions(publicKey.toBase58());
+        }
+    };
+
+    const fetchPastSessions = async (driverPublicKey: string) => {
+        setIsLoadingHistory(true);
+        try {
+            const response = await fetch(`http://localhost:3001/api/sessions/history/${driverPublicKey}`);
+            const data: PastSession[] = await response.json();
+            setPastSessions(data);
+        } catch (error) {
+            console.error("Failed to fetch past sessions:", error);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    const formatElapsedTime = (ms: number) => {
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
 
     return (
         <>
             <Header />
-            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
                 <div className="container mx-auto p-6 grid md:grid-cols-3 gap-6">
                     <div className="md:col-span-2 space-y-6">
                         <div className="flex justify-between items-center">
                             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-lime-400 bg-clip-text text-transparent">
-                                {isBuyerView ? '💰 Marketplace' : '⚡ Live Charging Sessions'}
+                                {isBuyerView ? '💰 Marketplace' : '⚡ Your Sessions'}
                             </h1>
                             <div className="flex items-center space-x-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700/50">
                                 <Label htmlFor="view-toggle" className="text-slate-300 font-medium">
-                                    {isBuyerView ? '💰 Buyer View' : '🔌 Driver View'}
+                                    {isBuyerView ? 'Buyer View' : 'Driver View'}
                                 </Label>
                                 <Switch id="view-toggle" checked={isBuyerView} onCheckedChange={setIsBuyerView} />
                             </div>
@@ -124,81 +124,100 @@ const SessionsPage = () => {
                                 <Leaderboard />
                             </div>
                         ) : (
-                            <>
-                                <Card className="bg-gradient-to-br from-blue-900/20 to-cyan-900/20 border-blue-500/30 shadow-xl">
-                                    <CardHeader>
-                                        <CardTitle className="text-2xl font-bold text-white flex items-center gap-2">
-                                            <span className="text-2xl">📊</span>
-                                            Session Summary
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center justify-between text-lg">
-                                            <div className="flex items-center gap-3">
-                                                <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg font-bold">{totalKwh} kWh</span>
-                                                <span className="text-slate-500">→</span>
-                                                <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg font-bold">{totalPoints} DECH</span>
-                                                <span className="text-slate-500">→</span>
-                                                <span className="px-3 py-1 bg-lime-500/20 text-lime-400 rounded-lg font-bold">₹{inrEquivalent}</span>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-3 rounded-lg border border-blue-500/20 overflow-hidden shadow-lg">
-                                    <div className="whitespace-nowrap text-sm font-medium text-slate-300">
-                                        {sessions.map(s => `💧 ${s.id} — ${s.energy} kWh used | +${s.points} pts | `).join('')}
-                                        {sessions.map(s => `💧 ${s.id} — ${s.energy} kWh used | +${s.points} pts | `).join('')}
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    {sessions.map((session, index) => (
-                                        <Card key={session.id} className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50 hover:border-blue-500/50 transition-all duration-300 shadow-lg hover:shadow-blue-500/20">
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-lg flex items-center justify-between">
-                                                    <span className="text-slate-200">Session: {session.id}</span>
-                                                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">
+                            <Tabs defaultValue="live" className="w-full" onValueChange={handleTabChange}>
+                                <TabsList className="grid w-full grid-cols-2 bg-slate-800/80 border border-slate-700">
+                                    <TabsTrigger value="live" className="data-[state=active]:bg-lime-500/20 data-[state=active]:text-lime-400">
+                                        <Zap className="w-4 h-4 mr-2" /> Live Session
+                                    </TabsTrigger>
+                                    <TabsTrigger value="history" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                                        <History className="w-4 h-4 mr-2" /> Session History
+                                    </TabsTrigger>
+                                </TabsList>
+                                
+                                <TabsContent value="live" className="mt-6">
+                                    {activeSession ? (
+                                        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50 shadow-lg shadow-lime-500/10">
+                                            {/* Live session details */}
+                                            <CardHeader>
+                                                <CardTitle className="text-2xl flex items-center justify-between">
+                                                    <span>Charging at <span className="text-lime-400 font-mono">{activeSession.chargerCode}</span></span>
+                                                    <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full animate-pulse">
                                                         LIVE
                                                     </span>
                                                 </CardTitle>
                                             </CardHeader>
-                                            <CardContent className="space-y-3">
-                                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                                    <div className="bg-slate-800/50 p-2 rounded-lg">
-                                                        <p className="text-slate-400 text-xs">Energy</p>
-                                                        <p className="text-white font-bold">{session.energy} kWh</p>
+                                            <CardContent className="space-y-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                                                    <div className="bg-slate-800/50 p-4 rounded-lg">
+                                                        <p className="text-slate-400 text-sm flex items-center justify-center"><Zap className="w-4 h-4 mr-1"/>Energy</p>
+                                                        <p className="text-3xl font-bold text-white">{activeSession.energyUsed.toFixed(4)} <span className="text-xl">kWh</span></p>
                                                     </div>
-                                                    <div className="bg-slate-800/50 p-2 rounded-lg">
-                                                        <p className="text-slate-400 text-xs">Time</p>
-                                                        <p className="text-white font-bold">{session.time} mins</p>
+                                                    <div className="bg-slate-800/50 p-4 rounded-lg">
+                                                        <p className="text-slate-400 text-sm flex items-center justify-center"><Clock className="w-4 h-4 mr-1"/>Time Elapsed</p>
+                                                        <p className="text-3xl font-bold text-white font-mono">{formatElapsedTime(activeSession.elapsedTime)}</p>
+                                                    </div>
+                                                    <div className="bg-slate-800/50 p-4 rounded-lg">
+                                                        <p className="text-slate-400 text-sm flex items-center justify-center"><Leaf className="w-4 h-4 mr-1"/>CO2 Saved</p>
+                                                        <p className="text-3xl font-bold text-white">{(activeSession.energyUsed).toFixed(2)} <span className="text-xl">kg</span></p>
                                                     </div>
                                                 </div>
-                                                <div className="bg-gradient-to-r from-blue-500/10 to-lime-500/10 p-3 rounded-lg border border-blue-500/20">
-                                                    <p className="text-sm text-slate-400">Points Earned</p>
-                                                    <p className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-lime-400 bg-clip-text text-transparent">
-                                                        +{session.points} DECH
+                                                <div>
+                                                    <p className="text-center text-xl mb-2">Points Earned</p>
+                                                    <p className="text-5xl font-bold text-center bg-gradient-to-r from-blue-400 to-lime-400 bg-clip-text text-transparent">
+                                                        +{(activeSession.pointsEarned / 1_000_000).toFixed(4)} DECH
                                                     </p>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between text-xs text-slate-400">
-                                                        <span>Progress</span>
-                                                        <span>{session.progress}%</span>
-                                                    </div>
-                                                    <Progress value={session.progress} className="h-2" />
-                                                </div>
-                                                <Button onClick={() => handleStopSession(session)} size="sm" variant="destructive">
-                                                    Stop Session
-                                                </Button>
                                             </CardContent>
                                         </Card>
-                                    ))}
-                                </div>
+                                    ) : (
+                                        <Card className="bg-slate-900 border-slate-700 text-center py-12">
+                                            <CardContent>
+                                                <Zap className="w-16 h-16 mx-auto text-slate-600 mb-4" />
+                                                <h2 className="text-2xl font-bold text-slate-300">No Active Charging Session</h2>
+                                                <p className="text-slate-500 mt-2">Go to the map to start a new session.</p>
+                                                <Link href="/" passHref>
+                                                    <Button className="mt-4 bg-lime-500 hover:bg-lime-600 text-slate-900 font-bold">
+                                                        Go to Map
+                                                    </Button>
+                                                </Link>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </TabsContent>
 
-                                <div className="flex justify-center">
-                                    <MintAnimation />
-                                </div>
-                            </>
+                                <TabsContent value="history" className="mt-6">
+                                     <Card className="bg-slate-900 border-slate-700">
+                                        <CardHeader>
+                                            <CardTitle className="text-blue-400">Recent Sessions</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            {isLoadingHistory ? (
+                                                 <div className="text-center p-8">Loading session history...</div>
+                                            ) : pastSessions.length > 0 ? (
+                                                <div className="space-y-3">
+                                                    {pastSessions.map(session => (
+                                                        <div key={session.publicKey} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                                                            <div>
+                                                                <p className="font-mono text-sm">{session.chargerId}</p>
+                                                                <p className="text-xs text-slate-400">{new Date(session.timestamp * 1000).toLocaleString()}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                 <p className="font-bold text-lime-400">+{session.points.toFixed(4)} DECH</p>
+                                                                 <p className="text-xs text-slate-400">{session.energyUsed.toFixed(3)} kWh</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center p-8">
+                                                    <History className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+                                                    <p className="text-slate-400">No session history found for this wallet.</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </TabsContent>
+                            </Tabs>
                         )}
                     </div>
                     

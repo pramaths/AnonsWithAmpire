@@ -2,18 +2,16 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
-type Driver = {
+interface Driver {
     publicKey: string;
-    account: {
-        driver: string;
-        totalEnergy: string;
-        totalPoints: string;
-        sessionCount: string;
-        pointsBalance: string;
-        pricePerPoint: string;
-        active: boolean;
-    }
-};
+    driver: string;
+    totalEnergy: number;
+    totalPoints: number;
+    sessionCount: number;
+    pricePerPoint: number;
+    active: boolean;
+
+}
 
 const Leaderboard = () => {
     const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -26,10 +24,8 @@ const Leaderboard = () => {
                     throw new Error('Failed to fetch leaderboard data');
                 }
                 const data = await response.json();
-                
-                // Sort drivers by totalPoints in descending order
                 const sortedDrivers = data.sort((a: Driver, b: Driver) => 
-                    parseInt(b.account.totalPoints) - parseInt(a.account.totalPoints)
+                    b.totalPoints - a.totalPoints
                 );
 
                 setDrivers(sortedDrivers);
@@ -39,7 +35,7 @@ const Leaderboard = () => {
         };
 
         fetchDrivers();
-        const interval = setInterval(fetchDrivers, 1500000); // Refresh every 1500 seconds
+        const interval = setInterval(fetchDrivers, 1500000);
 
         return () => clearInterval(interval);
     }, []);
@@ -52,10 +48,10 @@ const Leaderboard = () => {
                     <div key={driver.publicKey} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-3">
                             <span className="font-bold text-slate-400 w-5">{index + 1}.</span>
-                            <span className="text-white truncate w-32">{driver.account.driver}</span>
+                            <span className="text-white truncate w-32">{driver.driver}</span>
                         </div>
                         <span className="text-lime-400 font-bold">
-                            {(parseInt(driver.account.totalPoints) / 1_000_000).toFixed(2)} DECH
+                            {driver.totalPoints.toString()} DECH
                         </span>
                     </div>
                 ))}

@@ -9,6 +9,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 
 
 type ActiveSession = {
@@ -106,6 +107,7 @@ const MapComponent = () => {
           pointsEarned: 0,
         };
         setActiveSession(initialSessionState);
+        localStorage.setItem('activeSessionId', sessionId);
 
         const intervalId = setInterval(async () => {
           try {
@@ -258,42 +260,25 @@ const MapComponent = () => {
                                     <p>💨 CO2 Saved: {activeSession.pointsEarned.toFixed(2)} kg</p>
                                     <p>💰 Points Earned: {activeSession.pointsEarned.toFixed(2)} DECH</p>
                                 </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-slate-400">Status</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    selectedCharger.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                    selectedCharger.status === 'occupied' ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {selectedCharger.status.toUpperCase()}
-                  </span>
+                                <Button
+                                    onClick={handleStopCharging}
+                                    className="w-full mt-4 bg-red-500 hover:bg-red-600 text-white font-bold"
+                                >
+                                    Stop Charging
+                                </Button>
+                            </div>
+                        </>
+                    ) : (
+                        <Button onClick={() => handleStartCharging(selectedCharger as ChargePoint)} className="w-full bg-lime-500 hover:bg-lime-600 text-slate-900 font-bold">
+                            Start Charging
+                        </Button>
+                    )}
                 </div>
-              )}
             </div>
-            <button 
-              onClick={() => {
-                if (activeSession && activeSession.chargerCode === selectedCharger.code) {
-                  handleStopCharging();
-                } else {
-                  handleStartCharging(selectedCharger);
-                }
-              }}
-              disabled={!!activeSession && activeSession.chargerCode !== selectedCharger.code}
-              className="w-full mt-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {activeSession && activeSession.chargerCode === selectedCharger.code 
-                ? '🔌 Stop Charging' 
-                : '⚡ Start Charging'
-              }
-            </button>
-          </div>
         </Popup>
-      )}
-    </Map>
-  );
+    )}
+</Map>
+);
 };
 
 export default MapComponent;
