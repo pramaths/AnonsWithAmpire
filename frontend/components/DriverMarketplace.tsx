@@ -7,8 +7,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Info, Wallet2 } from "lucide-react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { toast } from "sonner";
+import { BuyPointsModal } from "./BuyPointsModal";
 
 interface Driver {
     publicKey: string;
@@ -19,10 +20,12 @@ interface Driver {
     pricePerPoint: string;
     active: boolean;
     balance?: number; // Add balance to the interface
+    isDelegated?: boolean;
 }
 
 export function DriverMarketplace() {
     const [drivers, setDrivers] = useState<Driver[]>([]);
+    const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
     const { connection } = useConnection();
     const { publicKey, sendTransaction } = useWallet();
 
@@ -33,6 +36,11 @@ export function DriverMarketplace() {
                 const configRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config`);
                 const { mint } = await configRes.json();
                 const mintPublicKey = new PublicKey(mint);
+
+                const [platformAuthority] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("platform_authority")],
+                    new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID!)
+                );
 
                 // Fetch the drivers
                 const driversRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/drivers`);
@@ -45,13 +53,17 @@ export function DriverMarketplace() {
                             const driverPublicKey = new PublicKey(driver.driver);
                             const ata = getAssociatedTokenAddressSync(mintPublicKey, driverPublicKey);
                             const balance = await connection.getTokenAccountBalance(ata);
+                            const accountInfo = await getAccount(connection, ata);
+                            const isDelegated = accountInfo.delegate?.equals(platformAuthority) ?? false;
+
                             return {
                                 ...driver,
                                 balance: balance.value.uiAmount ?? 0,
+                                isDelegated,
                             };
                         } catch (e) {
-                            // If ATA doesn't exist, balance is 0
-                            return { ...driver, balance: 0 };
+                            // If ATA doesn't exist, balance is 0 and not delegated
+                            return { ...driver, balance: 0, isDelegated: false };
                         }
                     })
                 );
@@ -104,52 +116,56 @@ export function DriverMarketplace() {
         }
     };
 
+    const handleBuySuccess = () => {
+        // Can add a refresh logic here if needed
+        console.log("Purchase successful, you might want to refresh balances.");
+    };
+
     return (
-        <Card className="bg-slate-900 border-slate-700 text-white">
-            <CardHeader>
-                <CardTitle className="text-lime-400">Driver Marketplace</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-4">
-                    {drivers.map((driver) => (
-                        <div key={driver.publicKey} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
-                            <div className="flex-1">
-                                <p className="text-sm font-mono truncate" title={driver.driver}>
-                                    {driver.driver}
-                                </p>
-                                <div className="flex items-center space-x-4 text-xs text-slate-400 mt-1">
-                                    <span>{driver.sessionCount} sessions</span>
-                                    <span>{parseFloat(driver.totalEnergy).toFixed(2)} kWh</span>
-                                    <span className="flex items-center font-bold text-lime-400">
-                                        <Wallet2 className="w-3 h-3 mr-1" />
-                                        {driver.balance?.toFixed(2) ?? '0.00'} DECH
-                                    </span>
+        <>
+            <Card className="bg-slate-900 border-slate-700 text-white">
+                <CardHeader>
+                    <CardTitle className="text-lime-400">Driver Marketplace</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {drivers.map((driver) => (
+                            <div key={driver.publicKey} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
+                                <div className="flex-1">
+                                    <p className="text-sm font-mono truncate" title={driver.driver}>
+                                        {driver.driver}
+                                    </p>
+                                    <div className="flex items-center space-x-4 text-xs text-slate-400 mt-1">
+                                        <span>{driver.sessionCount} sessions</span>
+                                        <span>{parseFloat(driver.totalEnergy).toFixed(2)} kWh</span>
+                                        <span className="flex items-center font-bold text-lime-400">
+                                            <Wallet2 className="w-3 h-3 mr-1" />
+                                            {driver.balance?.toFixed(2) ?? '0.00'} DECH
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button
+                                        onClick={() => setSelectedDriver(driver)}
+                                        disabled={!publicKey || publicKey.toBase58() === driver.driver || !driver.isDelegated}
+                                        variant="secondary"
+                                        className="bg-lime-500 hover:bg-lime-600 text-slate-900"
+                                    >
+                                        Buy
+                                    </Button>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <Button
-                                    onClick={() => handleApprove(driver)}
-                                    disabled={!publicKey || publicKey.toBase58() !== driver.driver || driver.active}
-                                    variant="ghost"
-                                    className="text-lime-400 hover:bg-lime-900/50 hover:text-lime-300"
-                                >
-                                    {driver.active ? "Approved" : "Approve"}
-                                </Button>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <Info className="h-4 w-4 text-slate-400" />
-                                        </TooltipTrigger>
-                                        <TooltipContent className="bg-slate-800 border-slate-700 text-white">
-                                            <p>Approve the platform to sell your DECH tokens on your behalf.</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+            {selectedDriver && (
+                <BuyPointsModal
+                    driver={selectedDriver}
+                    onClose={() => setSelectedDriver(null)}
+                    onSuccess={handleBuySuccess}
+                />
+            )}
+          </>
+        );
+    }

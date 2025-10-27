@@ -129,17 +129,13 @@
 }
 
 .mapboxgl-popup-close-button {
-  color: white !important;
-  font-size: 24px !important;
-  padding: 8px !important;
-  right: 8px !important;
-  top: 8px !important;
+  display: none !important;
 }
 
-.mapboxgl-popup-close-button:hover {
+/* .mapboxgl-popup-close-button:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
   border-radius: 4px;
-}
+} */
 
 .mapboxgl-popup-tip {
   display: none !important;

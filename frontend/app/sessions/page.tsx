@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Zap, History, Leaf } from "lucide-react";
 import Header from '@/components/Header';
-import SustainabilityPanel from '@/components/SustainabilityPanel';
+import { SustainabilityPanel } from '@/components/SustainabilityPanel';
 import UserHoldings from '@/components/UserHoldings';
 import { DriverMarketplace } from '@/components/DriverMarketplace';
 import Leaderboard from '@/components/Leaderboard';

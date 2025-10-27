@@ -7,8 +7,9 @@ import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import type { Ev } from './ev.js';
 import idl from './ev.json' with { type: "json" };
 import { startSession, getSessionStatus, stopSession, getSessionHistory, getLiveSessions } from './controllers/sessions.js';
-import { getAllDrivers, createDriverApprovalTransaction } from './controllers/drivers.js';
+import { getAllDrivers, createDriverApprovalTransaction, buyPoints } from './controllers/drivers.js';
 import { chargePointsData } from './charge_points.js';
+import { getSustainabilityInsights } from './controllers/sustainability.js';
 
 dotenv.config();
 const app = express();
@@ -85,6 +86,10 @@ app.get('/api/sessions/live', getLiveSessions);
 // Driver data endpoint
 app.get('/api/drivers', (req, res) => getAllDrivers(req, res, program));
 app.post('/api/drivers/approve-transaction', (req, res) => createDriverApprovalTransaction(req, res, program, connection));
+app.post('/api/drivers/buy-points', (req, res) => buyPoints(req, res, program, connection));
+
+// Sustainability Insights endpoint
+app.get('/api/sustainability-insights', (req, res) => getSustainabilityInsights(req, res, program));
 
 
 const PORT = process.env['PORT'] || 3001;

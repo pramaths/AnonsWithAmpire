@@ -1,68 +1,76 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Zap, Leaf, Footprints } from "lucide-react";
 
-const SustainabilityPanel = () => {
+interface SustainabilityData {
+    totalEnergy: number;
+    co2Saved: number;
+    totalSessions: number;
+}
+
+export function SustainabilityPanel() {
+    const [data, setData] = useState<SustainabilityData | null>(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sustainability-insights`);
+                const insights = await res.json();
+                setData(insights);
+            } catch (error) {
+                console.error("Failed to fetch sustainability insights:", error);
+            }
+        };
+
+        fetchData();
+        const interval = setInterval(fetchData, 15000); // Refresh every 15 seconds
+        return () => clearInterval(interval);
+    }, []);
+
     const stats = [
-        { label: 'Total Energy Delivered', value: 1250, unit: 'kWh', icon: '⚡', color: 'from-yellow-400 to-orange-500' },
-        { label: 'CO₂ Saved', value: 500, unit: 'kg', icon: '🌍', color: 'from-green-400 to-emerald-500' },
-        { label: 'Total Points Minted', value: 25000, unit: 'DECH', icon: '💎', color: 'from-blue-400 to-cyan-500' },
+        {
+            icon: <Zap className="h-6 w-6 text-lime-400" />,
+            label: "Total Energy Delivered",
+            value: data ? `${(data.totalEnergy / 1000).toFixed(2)} kWh` : "Loading...",
+            description: "Energy supplied to vehicles across the network.",
+        },
+        {
+            icon: <Leaf className="h-6 w-6 text-lime-400" />,
+            label: "CO2 Emissions Saved",
+            value: data ? `${(data.co2Saved / 1000).toFixed(2)} tonnes` : "Loading...",
+            description: "Estimated reduction in carbon footprint.",
+        },
+        {
+            icon: <Footprints className="h-6 w-6 text-lime-400" />,
+            label: "Total Charging Sessions",
+            value: data ? data.totalSessions.toLocaleString() : "Loading...",
+            description: "Completed charging sessions by all users.",
+        },
     ];
 
     return (
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-blue-500/30 shadow-xl">
+        <Card className="bg-slate-900 border-slate-700 text-white">
             <CardHeader>
-                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-lime-400 to-green-400 bg-clip-text text-transparent">
-                    🌱 Sustainability Insights
-                </CardTitle>
+                <CardTitle className="text-lime-400">Sustainability Insights</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="space-y-6">
                     {stats.map((stat, index) => (
-                        <motion.div 
-                            key={stat.label}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="relative overflow-hidden rounded-lg bg-slate-800/50 p-4 border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300"
-                        >
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-sm text-slate-400 font-medium">{stat.label}</p>
-                                <span className="text-2xl">{stat.icon}</span>
+                        <div key={index} className="flex items-start space-x-4">
+                            <div className="bg-slate-800 p-3 rounded-full">
+                                {stat.icon}
                             </div>
-                            <p className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
-                                <motion.span 
-                                    initial={{ opacity: 0, scale: 0.5 }} 
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: index * 0.1 + 0.2, type: "spring" }}
-                                >
-                                    {stat.value.toLocaleString()}
-                                </motion.span> 
-                                <span className="text-lg text-slate-500 ml-1">{stat.unit}</span>
-                            </p>
-                            <div className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r ${stat.color} w-full opacity-50`}></div>
-                        </motion.div>
+                            <div>
+                                <p className="text-sm text-slate-400">{stat.label}</p>
+                                <p className="text-2xl font-bold text-white">{stat.value}</p>
+                                <p className="text-xs text-slate-500">{stat.description}</p>
+                            </div>
+                        </div>
                     ))}
-                </div>
-                <div className="mt-6 pt-6 border-t border-slate-700/50">
-                    <motion.div 
-                        className="bg-gradient-to-r from-green-500/10 to-lime-500/10 p-4 rounded-lg border border-green-500/20"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                    >
-                        <p className="flex items-center text-sm">
-                            <span className="text-3xl mr-3">🌱</span>
-                            <span className="text-slate-300">
-                                Your last session offset <span className="font-bold text-green-400">0.8 kg</span> of CO₂
-                            </span>
-                        </p>
-                    </motion.div>
                 </div>
             </CardContent>
         </Card>
     );
-};
-
-export default SustainabilityPanel;
+}

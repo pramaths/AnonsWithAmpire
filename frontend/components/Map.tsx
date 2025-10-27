@@ -10,6 +10,7 @@ import { Connection, Transaction, SystemProgram, PublicKey } from '@solana/web3.
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { X } from 'lucide-react';
 
 
 type ActiveSession = {
@@ -22,7 +23,7 @@ type ActiveSession = {
   pointsEarned: number;
 };
 
-const MapComponent = () => {
+export const MapComponent = () => {
   const [chargePoints, setChargePoints] = useState<ChargePoint[]>([]);
   const [selectedCharger, setSelectedCharger] = useState<ChargePoint | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
@@ -189,73 +190,74 @@ const MapComponent = () => {
   };
 
   return (
-    <Map
-      initialViewState={{
-        longitude: 77.5946,
-        latitude: 12.9716,
-        zoom: 5
-      }}
-      style={{ width: '100vw', height: '100vh' }}
-      mapStyle="mapbox://styles/mapbox/dark-v11"
-      mapboxAccessToken="pk.eyJ1IjoicHJhbWF0aHMxMSIsImEiOiJjbWdwajU2NWcwb2FyMmpxNDAzN3AwdHF4In0.GL0MDtz32PYXGNfs571Luw"
-    >
-      {chargePoints.map((charger) => (
-        <Marker
-          key={charger.code}
-          longitude={charger.location.longitude}
-          latitude={charger.location.latitude}
+    <div className="relative w-full h-full">
+      <Map
+          initialViewState={{
+            longitude: 77.5946,
+            latitude: 12.9716,
+            zoom: 5
+          }}
+          style={{ width: '100vw', height: '100vh' }}
+          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapboxAccessToken="pk.eyJ1IjoicHJhbWF0aHMxMSIsImEiOiJjbWdwajU2NWcwb2FyMmpxNDAzN3AwdHF4In0.GL0MDtz32PYXGNfs571Luw"
         >
-          {charger.status === 'active' ? (
-            <div
-              className="pulsing-dot"
-              onClick={() => setSelectedCharger(charger)}
-            />
-          ) : (
-            <div
-              style={{
-                width: '20px',
-                height: '20px',
-                backgroundColor: getPinColor(charger.status),
-                borderRadius: '50%',
-                cursor: 'pointer',
-                border: '2px solid white'
-              }}
-              onClick={() => setSelectedCharger(charger)}
-            />
-          )}
-        </Marker>
-      ))}
+          {chargePoints.map((charger) => (
+            <Marker
+              key={charger.code}
+              longitude={charger.location.longitude}
+              latitude={charger.location.latitude}
+            >
+              {charger.status === 'active' ? (
+                <div
+                  className="pulsing-dot"
+                  onClick={() => setSelectedCharger(charger)}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: getPinColor(charger.status),
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    border: '2px solid white'
+                  }}
+                  onClick={() => setSelectedCharger(charger)}
+                />
+              )}
+            </Marker>
+          ))}
 
-      {selectedCharger && (
-        <Popup
-          longitude={selectedCharger.location.longitude}
-          latitude={selectedCharger.location.latitude}
-          onClose={() => setSelectedCharger(null)}
-          closeOnClick={false}
-        >
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-5 rounded-xl border border-blue-500/30 shadow-2xl min-w-[280px]">
-            <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              {selectedCharger.name}
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
-                <span className="text-slate-400">Power</span>
-                <span className="text-white font-semibold">{selectedCharger.connectors[0].power_kw} kW</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
-                <span className="text-slate-400">Rate</span>
-                <span className="text-lime-400 font-semibold">₹{selectedCharger.pricing.energy_based.rate}/kWh</span>
-              </div>
-              {activeSession && activeSession.chargerCode === selectedCharger.code ? (
-                <>
-                  <div className="pt-3 space-y-2">
-                    <Progress value={(activeSession.elapsedTime / (60 * 1000)) * 100} className="w-full" />
-                    <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span>TIME</span>
-                      <span>{formatElapsedTime(activeSession.elapsedTime)}</span>
-                    </div>
-                    <div className="text-sm">
+          {selectedCharger && (
+            <Popup
+              longitude={selectedCharger.location.longitude}
+              latitude={selectedCharger.location.latitude}
+              onClose={() => setSelectedCharger(null)}
+              closeOnClick={false}
+            >
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-5 rounded-xl border border-blue-500/30 shadow-2xl min-w-[280px] relative">
+                <h3 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  {selectedCharger.name}
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
+                    <span className="text-slate-400">Power</span>
+                    <span className="text-white font-semibold">{selectedCharger.connectors[0].power_kw} kW</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-slate-700/50">
+                    <span className="text-slate-400">Rate</span>
+                    <span className="text-lime-400 font-semibold">₹{selectedCharger.pricing.energy_based.rate}/kWh</span>
+                  </div>
+                  {activeSession && activeSession.chargerCode === selectedCharger.code ? (
+                    <>
+                      <div className="pt-3 space-y-2">
+                        <Progress value={(activeSession.elapsedTime / (60 * 1000)) * 100} className="w-full" />
+                        <div className="flex justify-between items-center text-xs text-slate-400">
+                          <span>TIME</span>
+                          <span>{formatElapsedTime(activeSession.elapsedTime)}</span>
+                        </div>
+                        <div className="text-sm">
                                     <p>⚡️ Energy Delivered: {activeSession.energyUsed.toFixed(2)} kWh</p>
                                     <p>💨 CO2 Saved: {activeSession.pointsEarned.toFixed(2)} kg</p>
                                     <p>💰 Points Earned: {activeSession.pointsEarned.toFixed(2)} DECH</p>
@@ -274,10 +276,17 @@ const MapComponent = () => {
                         </Button>
                     )}
                 </div>
+                <button
+                    onClick={() => setSelectedCharger(null)}
+                    className="absolute top-2 right-2 p-1 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition-colors"
+                >
+                    <X className="h-4 w-4" />
+                </button>
             </div>
         </Popup>
     )}
 </Map>
+</div>
 );
 };
 
