@@ -13,6 +13,7 @@ interface Session {
     intervalId?: NodeJS.Timeout;
     energyUsed: number;
     chargerCode: string;
+    pointsEarned: number;
 }
 
 const activeSessions: { [sessionId: string]: Session } = {};
@@ -83,10 +84,12 @@ export const startSession = async (req: Request, res: Response, program: Program
             startTime: Date.now(),
             energyUsed: 0,
             chargerCode,
+            pointsEarned: 0,
         };
 
         session.intervalId = setInterval(() => {
             session.energyUsed += 0.05;
+            session.pointsEarned += session.energyUsed * 10;
         }, 1000);
 
         activeSessions[sessionId] = session;
@@ -119,8 +122,8 @@ export const getSessionStatus = (req: Request, res: Response) => {
     }
 
     const elapsedTime = Date.now() - session.startTime;
-    // On-chain logic is now 1 kWh = 1 DECH. energyUsed is in kWh.
-    const pointsEarned = session.energyUsed * 1000000;
+    const co2Saved = session.energyUsed * 0.5; // Assuming 0.5 kg CO2 saved per kWh
+    const pointsEarned = session.energyUsed * 100; // Multiply by 100 for demo purposes
 
     res.status(200).json({
         sessionId: session.sessionId,
@@ -128,6 +131,7 @@ export const getSessionStatus = (req: Request, res: Response) => {
         energyUsed: session.energyUsed,
         chargerCode: session.chargerCode,
         elapsedTime,
+        co2Saved,
         pointsEarned,
     });
     return;
@@ -149,7 +153,8 @@ export const stopSession = async (req: Request, res: Response, program: Program<
         delete activeSessions[sessionId];
 
         const driverPubkey = new PublicKey(session.driverPublicKey);
-        const energy_used_milli_kwh = Math.floor(session.energyUsed * 1000000);
+        const effectiveEnergyUsed = session.energyUsed;
+        const energyUsedOnChain = Math.floor(effectiveEnergyUsed * 100000);
 
 
         const [platformStatePda] = PublicKey.findProgramAddressSync(
@@ -173,7 +178,7 @@ export const stopSession = async (req: Request, res: Response, program: Program<
         const sessionKeypair = Keypair.generate();
 
         const tx = await program.methods
-            .recordSession(charger_code, new BN(energy_used_milli_kwh))
+            .recordSession(charger_code, new BN(energyUsedOnChain))
             .accountsStrict({
                 platformState: platformStatePda,
                 driverAccount: driverPda,
@@ -262,7 +267,17 @@ export const getSessionHistory = async (req: Request, res: Response, program: Pr
 
 export const getLiveSessions = (_req: Request, res: Response) => {
     try {
-        const allLiveSessions = Object.values(activeSessions);
+        const allLiveSessions = Object.values(activeSessions).map(session => {
+            const elapsedTime = Date.now() - session.startTime;
+            const co2Saved = session.energyUsed * 0.5;
+            const pointsEarned = session.energyUsed * 100;
+            return {
+                ...session,
+                elapsedTime,
+                co2Saved,
+                pointsEarned,
+            };
+        });
         res.status(200).json(allLiveSessions);
     } catch (error) {
         console.error('Error in /api/sessions/live:', error);

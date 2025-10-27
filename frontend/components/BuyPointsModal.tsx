@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { toast } from "sonner";
+import { DollarSign } from "lucide-react";
 
 interface BuyPointsModalProps {
   driver: {
@@ -22,6 +23,13 @@ export function BuyPointsModal({ driver, onClose, onSuccess }: BuyPointsModalPro
   const [amount, setAmount] = useState("");
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
+
+  const pricePerPointSOL = parseFloat(driver.pricePerPoint) / 1000;
+  
+  const totalCost = useMemo(() => {
+    if (!amount || parseFloat(amount) <= 0) return 0;
+    return parseFloat(amount) * pricePerPointSOL;
+  }, [amount, pricePerPointSOL]);
 
   const handleBuy = async () => {
     if (!publicKey) {
@@ -79,6 +87,12 @@ export function BuyPointsModal({ driver, onClose, onSuccess }: BuyPointsModalPro
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            <div className="bg-slate-800 p-3 rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">Price per DECH:</span>
+                <span className="text-yellow-400 font-mono">{pricePerPointSOL.toFixed(6)} SOL</span>
+              </div>
+            </div>
             <div>
               <Label htmlFor="amount">Amount of DECH to buy</Label>
               <Input
@@ -90,6 +104,17 @@ export function BuyPointsModal({ driver, onClose, onSuccess }: BuyPointsModalPro
                 className="bg-slate-800 border-slate-700 text-white"
               />
             </div>
+            {amount && parseFloat(amount) > 0 && (
+              <div className="bg-slate-800 p-3 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-400">Total Cost:</span>
+                  <span className="text-lime-400 font-mono flex items-center">
+                    <DollarSign className="w-3 h-3 mr-1" />
+                    {totalCost.toFixed(6)} SOL
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex justify-end space-x-2">
               <Button variant="ghost" onClick={onClose} className="text-slate-400 hover:text-white">Cancel</Button>
               <Button onClick={handleBuy} className="bg-lime-500 hover:bg-lime-600 text-slate-900">

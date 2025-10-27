@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info, Wallet2 } from "lucide-react";
+import { Info, Wallet2, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Transaction, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
@@ -132,27 +132,78 @@ export function DriverMarketplace() {
                         {drivers.map((driver) => (
                             <div key={driver.publicKey} className="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
                                 <div className="flex-1">
-                                    <p className="text-sm font-mono truncate" title={driver.driver}>
-                                        {driver.driver}
-                                    </p>
-                                    <div className="flex items-center space-x-4 text-xs text-slate-400 mt-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                        <p className="text-sm font-mono truncate" title={driver.driver}>
+                                            {driver.driver}
+                                        </p>
+                                        <div className="flex items-center">
+                                            {driver.isDelegated ? (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <CheckCircle className="w-4 h-4 text-green-400" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Approved for platform trading</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            ) : (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <XCircle className="w-4 h-4 text-red-400" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Not approved for platform trading</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-4 text-xs text-slate-400">
                                         <span>{driver.sessionCount} sessions</span>
                                         <span>{parseFloat(driver.totalEnergy).toFixed(2)} kWh</span>
                                         <span className="flex items-center font-bold text-lime-400">
                                             <Wallet2 className="w-3 h-3 mr-1" />
                                             {driver.balance?.toFixed(2) ?? '0.00'} DECH
                                         </span>
+                                        <span className="flex items-center text-yellow-400">
+                                            <DollarSign className="w-3 h-3 mr-1" />
+                                            {(parseFloat(driver.pricePerPoint)/1000).toFixed(6)} SOL/DECH
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <Button
-                                        onClick={() => setSelectedDriver(driver)}
-                                        disabled={!publicKey || publicKey.toBase58() === driver.driver || !driver.isDelegated}
-                                        variant="secondary"
-                                        className="bg-lime-500 hover:bg-lime-600 text-slate-900"
-                                    >
-                                        Buy
-                                    </Button>
+                                    {!driver.isDelegated ? (
+                                        driver.driver === publicKey?.toBase58() ? (
+                                            <Button
+                                                onClick={() => handleApprove(driver)}
+                                                variant="secondary"
+                                                className="bg-blue-500 hover:bg-blue-600 text-white"
+                                            >
+                                                Approve
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                disabled
+                                                variant="secondary"
+                                                className="bg-gray-500 text-gray-300 cursor-not-allowed"
+                                            >
+                                                Not Approved
+                                            </Button>
+                                        )
+                                    ) : (
+                                        <Button
+                                            onClick={() => setSelectedDriver(driver)}
+                                            disabled={!publicKey || publicKey.toBase58() === driver.driver}
+                                            variant="secondary"
+                                            className="bg-lime-500 hover:bg-lime-600 text-slate-900"
+                                        >
+                                            Buy
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         ))}

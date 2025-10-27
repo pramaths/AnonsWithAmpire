@@ -72,20 +72,20 @@ pub fn handler(
     );
     token::mint_to(cpi_ctx, points)?;
 
-    // Convert energy back to kWh for storage and event logging
     let energy_used_kwh = energy_used_milli_kwh.checked_div(1000).unwrap_or(0);
 
-    // Record the session details
     ctx.accounts.session.driver = ctx.accounts.driver.key();
     ctx.accounts.session.charger_code = charger_code.clone();
     ctx.accounts.session.energy_used = energy_used_kwh;
     ctx.accounts.session.timestamp = Clock::get()?.unix_timestamp;
 
-    // Update driver's aggregate stats
     let driver_acc = &mut ctx.accounts.driver_account;
     driver_acc.total_points = driver_acc.total_points.checked_add(points).unwrap();
     driver_acc.total_energy = driver_acc.total_energy.checked_add(energy_used_kwh).unwrap();
     driver_acc.session_count = driver_acc.session_count.checked_add(1).unwrap();
+
+    let platform_acc = &mut ctx.accounts.platform_state;
+    platform_acc.total_sessions = platform_acc.total_sessions.checked_add(1).unwrap();
 
     // Emit an event
     emit!(SessionRecorded {

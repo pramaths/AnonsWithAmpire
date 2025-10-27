@@ -33,19 +33,19 @@ export function SustainabilityPanel() {
         {
             icon: <Zap className="h-6 w-6 text-lime-400" />,
             label: "Total Energy Delivered",
-            value: data ? `${(data.totalEnergy / 1000).toFixed(2)} kWh` : "Loading...",
+            value: data && data.totalEnergy !== undefined ? `${data.totalEnergy.toFixed(2)} kWh` : "Loading...",
             description: "Energy supplied to vehicles across the network.",
         },
         {
             icon: <Leaf className="h-6 w-6 text-lime-400" />,
             label: "CO2 Emissions Saved",
-            value: data ? `${(data.co2Saved / 1000).toFixed(2)} tonnes` : "Loading...",
+            value: data && data.co2Saved !== undefined ? `${data.co2Saved.toFixed(2)} tonnes` : "Loading...",
             description: "Estimated reduction in carbon footprint.",
         },
         {
             icon: <Footprints className="h-6 w-6 text-lime-400" />,
             label: "Total Charging Sessions",
-            value: data ? data.totalSessions.toLocaleString() : "Loading...",
+            value: data && data.totalSessions !== undefined ? data.totalSessions.toLocaleString() : "Loading...",
             description: "Completed charging sessions by all users.",
         },
     ];

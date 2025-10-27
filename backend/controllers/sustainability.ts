@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { Program } from '@coral-xyz/anchor';
 import type { Ev } from '../ev.js';
+import { PublicKey } from '@solana/web3.js';
 
 export const getSustainabilityInsights = async (req: Request, res: Response, program: Program<Ev>) => {
     try {
@@ -11,15 +12,16 @@ export const getSustainabilityInsights = async (req: Request, res: Response, pro
         const co2Saved = totalEnergy * 0.5;
 
         // Fetch platform state for total sessions
-        const [platformState] = await program.provider.connection.getProgramAccounts(program.programId, {
-            filters: [{ dataSize: 8 + 32 + 32 + 8 + 8 }]
-        });
-        const platformStateAccount = await program.account.platformState.fetch(platformState.pubkey);
+        const [platformStatePda] = await PublicKey.findProgramAddress(
+            [Buffer.from("platform")],
+            program.programId
+        );
+        const platformStateAccount = await program.account.platformState.fetch(platformStatePda);
         const totalSessions = platformStateAccount.totalSessions.toNumber();
 
         res.status(200).json({
-            totalEnergy: totalEnergy, // in Wh
-            co2Saved: co2Saved, // in kg
+            totalEnergy: totalEnergy/10000000, // in Wh
+            co2Saved: co2Saved/10000000, // in kg
             totalSessions: totalSessions,
         });
     } catch (error) {

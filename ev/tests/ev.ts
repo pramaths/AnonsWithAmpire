@@ -14,6 +14,8 @@ import {
   approve,
   getAccount,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
 
 describe("ev", () => {
@@ -47,15 +49,28 @@ describe("ev", () => {
   );
 
   before(async () => {
-    // Airdrop SOL to driver and buyer
-    await provider.connection.requestAirdrop(
+    // Airdrop SOL to driver and buyer and confirm the transactions
+    const driverAirdropSignature = await provider.connection.requestAirdrop(
       driver.publicKey,
       2 * LAMPORTS_PER_SOL
     );
-    await provider.connection.requestAirdrop(
+    let latestBlockhash = await provider.connection.getLatestBlockhash();
+    await provider.connection.confirmTransaction({
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      signature: driverAirdropSignature,
+    });
+
+    const buyerAirdropSignature = await provider.connection.requestAirdrop(
       buyer.publicKey,
       2 * LAMPORTS_PER_SOL
     );
+    latestBlockhash = await provider.connection.getLatestBlockhash();
+    await provider.connection.confirmTransaction({
+      blockhash: latestBlockhash.blockhash,
+      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      signature: buyerAirdropSignature,
+    });
   });
 
   it("Initializes the platform", async () => {
@@ -75,9 +90,16 @@ describe("ev", () => {
       .rpc();
 
     const state = await program.account.platformState.fetch(platformState);
+    console.log("Platform State after initialization:");
+    console.log("- Total sessions:", state.totalSessions.toString());
+    console.log("- Admin:", state.admin.toString());
+    console.log("- Mint:", state.mint.toString());
+    console.log("- Fee BPS:", state.feeBps.toString());
+    
     assert.ok(state.admin.equals(admin.publicKey));
     assert.ok(state.mint.equals(mint.publicKey));
     assert.equal(state.feeBps.toNumber(), feeBps.toNumber());
+    assert.equal(state.totalSessions.toString(), "0");
   });
 
   it("Registers a driver", async () => {
@@ -97,12 +119,21 @@ describe("ev", () => {
   });
 
   it("Approves platform access for a driver", async () => {
-    driverTokenAccount = await createAccount(
-      provider.connection,
-      driver,
+    driverTokenAccount = await getAssociatedTokenAddress(
       mint.publicKey,
       driver.publicKey
     );
+
+    // Create associated token account if it doesn't exist
+    const createTokenAccountIx = createAssociatedTokenAccountInstruction(
+      driver.publicKey, // payer
+      driverTokenAccount, // associated token account
+      driver.publicKey, // owner
+      mint.publicKey // mint
+    );
+
+    const transaction = new anchor.web3.Transaction().add(createTokenAccountIx);
+    await provider.sendAndConfirm(transaction, [driver]);
 
     await program.methods
       .approvePlatformAccess(true, new anchor.BN(1000))
@@ -126,6 +157,14 @@ describe("ev", () => {
     const chargerCode = "test-charger";
     const session = Keypair.generate();
 
+    // Ensure driverTokenAccount is available (it should be created in the previous test)
+    if (!driverTokenAccount) {
+      driverTokenAccount = await getAssociatedTokenAddress(
+        mint.publicKey,
+        driver.publicKey
+      );
+    }
+
     await program.methods
       .recordSession(chargerCode, energyAmount)
       .accountsStrict({
@@ -147,16 +186,35 @@ describe("ev", () => {
       provider.connection,
       driverTokenAccount
     );
-    assert.equal(tokenAccountInfo.amount.toString(), new anchor.BN(100).toString());
+    
+    // Check platform state to verify total sessions increased
+    const platformStateInfo = await program.account.platformState.fetch(platformState);
+    console.log("Platform State after session recording:");
+    console.log("- Total sessions:", platformStateInfo.totalSessions.toString());
+    console.log("- Admin:", platformStateInfo.admin.toString());
+    console.log("- Mint:", platformStateInfo.mint.toString());
+    
+    // Energy amount is 1000 milli-kWh, so points = 1000 * 1000 = 1,000,000
+    assert.equal(tokenAccountInfo.amount.toString(), new anchor.BN(1000000).toString());
+    assert.equal(platformStateInfo.totalSessions.toString(), "1");
   });
 
   it("Allows a buyer to buy points from a driver", async () => {
-    buyerTokenAccount = await createAccount(
-      provider.connection,
-      buyer,
+    buyerTokenAccount = await getAssociatedTokenAddress(
       mint.publicKey,
       buyer.publicKey
     );
+
+    // Create associated token account if it doesn't exist
+    const createBuyerTokenAccountIx = createAssociatedTokenAccountInstruction(
+      buyer.publicKey, // payer
+      buyerTokenAccount, // associated token account
+      buyer.publicKey, // owner
+      mint.publicKey // mint
+    );
+
+    const transaction = new anchor.web3.Transaction().add(createBuyerTokenAccountIx);
+    await provider.sendAndConfirm(transaction, [buyer]);
       
     const amountToBuy = new anchor.BN(50);
     const solPayment = new anchor.BN(LAMPORTS_PER_SOL / 2); // 0.5 SOL
@@ -199,10 +257,10 @@ describe("ev", () => {
       provider.connection,
       driverTokenAccount
     );
-    // Initial 100 - 50 sold
+    // Initial 1,000,000 - 50 sold = 999,950
     assert.equal(
       driverTokenAccountInfo.amount.toString(),
-      new anchor.BN(50).toString()
+      new anchor.BN(999950).toString()
     );
   });
 });

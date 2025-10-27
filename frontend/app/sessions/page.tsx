@@ -164,7 +164,7 @@ const SessionsPage = () => {
                                                 <div>
                                                     <p className="text-center text-xl mb-2">Points Earned</p>
                                                     <p className="text-5xl font-bold text-center bg-gradient-to-r from-blue-400 to-lime-400 bg-clip-text text-transparent">
-                                                        +{(activeSession.pointsEarned / 1_000_000).toFixed(4)} DECH
+                                                        +{(activeSession.pointsEarned).toFixed(2)} DECH
                                                     </p>
                                                 </div>
                                             </CardContent>

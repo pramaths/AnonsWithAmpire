@@ -119,8 +119,8 @@ export const getAllDrivers = async (_req: Request, res: Response, program: Progr
         const formattedAccounts: FormattedDriverAccount[] = driverAccounts.map(account => ({
             publicKey: account.publicKey.toBase58(),
             driver: account.account.driver.toBase58(),
-            totalEnergy: account.account.totalEnergy.toString(),
-            totalPoints: account.account.totalPoints.toNumber() / 1_000_000,
+            totalEnergy: (account.account.totalEnergy.toNumber() / 1000000).toString(),
+            totalPoints: account.account.totalPoints.toNumber() / 1000000,
             sessionCount: account.account.sessionCount.toNumber(),
             pricePerPoint: account.account.pricePerPoint.toString(),
             active: account.account.active,
