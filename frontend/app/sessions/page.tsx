@@ -24,6 +24,10 @@ interface ActiveSession {
     pointsEarned: number;
 }
 
+interface LiveSession extends ActiveSession {
+    driverPublicKey: string;
+}
+
 interface PastSession {
     publicKey: string;
     driver: string;
@@ -38,9 +42,10 @@ const SessionsPage = () => {
     const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isBuyerView, setIsBuyerView] = useState(true); // State for the main view toggle
+    const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
     const { publicKey } = useWallet();
 
-    // Effect to poll for active session status
+    // Effect to poll for active session status by sessionId (local start)
     useEffect(() => {
         const sessionId = localStorage.getItem('activeSessionId');
         if (!sessionId) {
@@ -70,6 +75,67 @@ const SessionsPage = () => {
         const interval = setInterval(pollSession, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
+    }, []);
+
+    // Effect to poll for driver's live session from backend (server memory) when no local sessionId
+    useEffect(() => {
+        if (!publicKey) return;
+
+        let interval: ReturnType<typeof setInterval> | null = null;
+        let cancelled = false;
+
+        const pollDriverLive = async () => {
+            try {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/live/${publicKey.toBase58()}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        if (!cancelled) setActiveSession(null);
+                    }
+                    return;
+                }
+                const data: ActiveSession = await response.json();
+                if (!cancelled) setActiveSession(data);
+            } catch (e) {
+                // Ignore transient errors; keep polling
+            }
+        };
+
+        // Only use this path if we don't have a local session id
+        const sessionId = localStorage.getItem('activeSessionId');
+        if (!sessionId) {
+            pollDriverLive();
+            interval = setInterval(pollDriverLive, 5000);
+        }
+
+        return () => {
+            cancelled = true;
+            if (interval) clearInterval(interval);
+        };
+    }, [publicKey]);
+
+    // Poll all live sessions for a public live view
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval> | null = null;
+        let cancelled = false;
+
+        const pollAllLive = async () => {
+            try {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sessions/live`);
+                if (!response.ok) return;
+                const data: LiveSession[] = await response.json();
+                if (!cancelled) setLiveSessions(data as LiveSession[]);
+            } catch {
+                // ignore
+            }
+        };
+
+        pollAllLive();
+        interval = setInterval(pollAllLive, 5000);
+
+        return () => {
+            cancelled = true;
+            if (interval) clearInterval(interval);
+        };
     }, []);
 
     const handleTabChange = (value: string) => {
@@ -170,18 +236,46 @@ const SessionsPage = () => {
                                             </CardContent>
                                         </Card>
                                     ) : (
-                                        <Card className="bg-slate-900 border-slate-700 text-center py-12">
-                                            <CardContent>
-                                                <Zap className="w-16 h-16 mx-auto text-slate-600 mb-4" />
-                                                <h2 className="text-2xl font-bold text-slate-300">No Active Charging Session</h2>
-                                                <p className="text-slate-500 mt-2">Go to the map to start a new session.</p>
-                                                <Link href="/" passHref>
-                                                    <Button className="mt-4 bg-lime-500 hover:bg-lime-600 text-slate-900 font-bold">
-                                                        Go to Map
-                                                    </Button>
-                                                </Link>
-                                            </CardContent>
-                                        </Card>
+                                        <div className="space-y-4">
+                                            <Card className="bg-slate-900 border-slate-700">
+                                                <CardHeader>
+                                                    <CardTitle className="text-lime-400">Live Sessions</CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    {liveSessions.length > 0 ? (
+                                                        <div className="space-y-3">
+                                                            {liveSessions.map(ls => (
+                                                                <div key={ls.sessionId} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                                                                    <div>
+                                                                        <p className="text-sm font-mono">{ls.chargerCode}</p>
+                                                                        <p className="text-xs text-slate-400 break-all">{ls.driverPublicKey}</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="font-bold text-lime-400">+{(ls.pointsEarned).toFixed(2)} DECH</p>
+                                                                        <p className="text-xs text-slate-400">{ls.energyUsed.toFixed(3)} kWh</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-8">
+                                                            <Zap className="w-12 h-12 mx-auto text-slate-600 mb-3" />
+                                                            <p className="text-slate-400">No live sessions at the moment.</p>
+                                                        </div>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                            <Card className="bg-slate-900 border-slate-700 text-center py-8">
+                                                <CardContent>
+                                                    <p className="text-slate-400">Start a new session from the map to see your personal live view here.</p>
+                                                    <Link href="/" passHref>
+                                                        <Button className="mt-4 bg-lime-500 hover:bg-lime-600 text-slate-900 font-bold">
+                                                            Go to Map
+                                                        </Button>
+                                                    </Link>
+                                                </CardContent>
+                                            </Card>
+                                        </div>
                                     )}
                                 </TabsContent>
 

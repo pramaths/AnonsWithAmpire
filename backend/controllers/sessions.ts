@@ -17,6 +17,14 @@ interface Session {
 }
 
 const activeSessions: { [sessionId: string]: Session } = {};
+const driverToSessionId: { [driverPublicKey: string]: string } = {};
+const recentSessions: Array<{
+    sessionId: string;
+    driverPublicKey: string;
+    energyUsed: number;
+    chargerCode: string;
+    timestamp: number;
+}> = [];
 
 // Cleanup interval to remove stale sessions (e.g., older than 12 hours)
 setInterval(() => {
@@ -88,11 +96,13 @@ export const startSession = async (req: Request, res: Response, program: Program
         };
 
         session.intervalId = setInterval(() => {
+            // Simulate +0.05 kWh per second
             session.energyUsed += 0.05;
-            session.pointsEarned += session.energyUsed * 10;
+            session.pointsEarned += 50;
         }, 1000);
 
         activeSessions[sessionId] = session;
+        driverToSessionId[driverPublicKey] = sessionId;
 
         console.log(`Started new session ${sessionId} for driver ${driverPublicKey}`);
 
@@ -123,7 +133,7 @@ export const getSessionStatus = (req: Request, res: Response) => {
 
     const elapsedTime = Date.now() - session.startTime;
     const co2Saved = session.energyUsed * 0.5; // Assuming 0.5 kg CO2 saved per kWh
-    const pointsEarned = session.energyUsed * 100; // Multiply by 100 for demo purposes
+    const pointsEarned = session.pointsEarned; // Use accumulated points (+5 per second)
 
     res.status(200).json({
         sessionId: session.sessionId,
@@ -151,12 +161,34 @@ export const stopSession = async (req: Request, res: Response, program: Program<
 
         clearInterval(session.intervalId!);
         delete activeSessions[sessionId];
+        delete driverToSessionId[session.driverPublicKey];
+
+        // Keep a simple recent sessions buffer (last 50)
+        recentSessions.unshift({
+            sessionId,
+            driverPublicKey: session.driverPublicKey,
+            energyUsed: session.energyUsed,
+            chargerCode: session.chargerCode,
+            timestamp: Date.now(),
+        });
+        if (recentSessions.length > 50) recentSessions.pop();
 
         const driverPubkey = new PublicKey(session.driverPublicKey);
-        const effectiveEnergyUsed = session.energyUsed;
-        const energyUsedOnChain = Math.floor(effectiveEnergyUsed * 100000);
+        const effectiveEnergyUsed = session.energyUsed; // in kWh
+        // On-chain expects milli-kWh; 1 kWh = 1000 milli-kWh. Use rounding to avoid float truncation.
+        const energyUsedOnChain = Math.round(effectiveEnergyUsed * 1000);
 
+        // Logging pipeline for clarity
+        const dechPerKwh = 1000; // 10x scale
+        const expectedTokens = energyUsedOnChain / 1000 * dechPerKwh; // DECH (whole tokens)
+        const smallestUnits = Math.round(expectedTokens * 1_000_000); // token smallest units
+        console.log('[StopSession] driver=', session.driverPublicKey,
+            'kWh=', effectiveEnergyUsed.toFixed(6),
+            'milli_kWh(sent)=', energyUsedOnChain,
+            'expectedTokens(DECH)=', expectedTokens.toFixed(6),
+            'expectedSmallestUnits=', smallestUnits);
 
+        console.log(energyUsedOnChain, "energyUsedOnChain");
         const [platformStatePda] = PublicKey.findProgramAddressSync(
             [Buffer.from("platform")],
             program.programId
@@ -174,6 +206,21 @@ export const stopSession = async (req: Request, res: Response, program: Program<
         );
 
         const driverTokenAccount = getAssociatedTokenAddressSync(platformState.mint, driverPubkey);
+        try {
+            const bal = await connection.getTokenAccountBalance(driverTokenAccount);
+            console.log('[StopSession] driverTokenAccount=', driverTokenAccount.toBase58(), 'pre_balance(amount)=', bal.value.amount, 'decimals=', bal.value.decimals);
+        } catch (e) {
+            console.log('[StopSession] could not fetch pre_balance for driverTokenAccount');
+        }
+
+        // Debug: log mint and decimals to cross-check UI math
+        try {
+            const parsedMint = await connection.getParsedAccountInfo(platformState.mint);
+            const decimals = (parsedMint.value as any)?.data?.parsed?.info?.decimals;
+            console.log('[StopSession] mint=', platformState.mint.toBase58(), 'decimals=', decimals);
+        } catch (e) {
+            console.log('[StopSession] failed to fetch mint decimals');
+        }
 
         const sessionKeypair = Keypair.generate();
 
@@ -238,14 +285,15 @@ export const getSessionHistory = async (req: Request, res: Response, program: Pr
         if (!allSessionAccounts || allSessionAccounts.length === 0) {
             return res.status(200).json([]);
         }
+        console.log(allSessionAccounts, "allSessionAccounts");
+
 
         const formattedSessions = allSessionAccounts.map(session => ({
             publicKey: session.publicKey.toBase58(),
             driver: session.account.driver.toBase58(),
-            // The `energy_used` on chain is in milli-kWh * 1,000,000.
-            // To get kWh, we divide by 1,000,000,000.
-            energyUsed: session.account.energyUsed.toNumber() / 1_000_000_000,
-            points: session.account.pointsEarned.toNumber() / 1_000_000, // convert smallest units to DECH
+            energyUsed: session.account.energyUsed.toNumber() ,
+            // pointsEarned on-chain is in smallest units; convert to whole tokens (DECH) using mint decimals
+            points: session.account.pointsEarned.toNumber()/1000000,
             timestamp: session.account.timestamp.toNumber(),
             chargerId: session.account.chargerCode,
         }));
@@ -270,12 +318,16 @@ export const getLiveSessions = (_req: Request, res: Response) => {
         const allLiveSessions = Object.values(activeSessions).map(session => {
             const elapsedTime = Date.now() - session.startTime;
             const co2Saved = session.energyUsed * 0.5;
-            const pointsEarned = session.energyUsed * 100;
+            const pointsEarned = session.pointsEarned; // Use accumulated points (+5 per second)
             return {
-                ...session,
+                sessionId: session.sessionId,
+                driverPublicKey: session.driverPublicKey,
+                startTime: session.startTime,
+                energyUsed: session.energyUsed,
+                chargerCode: session.chargerCode,
+                pointsEarned,
                 elapsedTime,
                 co2Saved,
-                pointsEarned,
             };
         });
         res.status(200).json(allLiveSessions);
@@ -288,4 +340,52 @@ export const getLiveSessions = (_req: Request, res: Response) => {
         }
     }
     return;
+};
+
+export const getDriverLiveSession = (req: Request, res: Response) => {
+    try {
+        const { driverPublicKey } = req.params as { driverPublicKey: string };
+        if (!driverPublicKey) {
+            return res.status(400).json({ error: 'driverPublicKey is required.' });
+        }
+        const sessionId = driverToSessionId[driverPublicKey];
+        if (!sessionId) {
+            return res.status(404).json({ error: 'No live session for driver.' });
+        }
+        const session = activeSessions[sessionId];
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found.' });
+        }
+        const elapsedTime = Date.now() - session.startTime;
+        const co2Saved = session.energyUsed * 0.5;
+        const pointsEarned = session.pointsEarned; // Use accumulated points (+5 per second)
+        return res.status(200).json({
+            sessionId: session.sessionId,
+            driverPublicKey: session.driverPublicKey,
+            startTime: session.startTime,
+            energyUsed: session.energyUsed,
+            chargerCode: session.chargerCode,
+            pointsEarned,
+            elapsedTime,
+            co2Saved,
+        });
+    } catch (error) {
+        console.error('Error in /api/sessions/live/:driverPublicKey:', error);
+        if (error instanceof Error) {
+            return res.status(500).json({ error: 'Failed to fetch live session.', details: error.message });
+        }
+        return res.status(500).json({ error: 'An unknown error occurred.' });
+    }
+};
+
+export const getRecentSessions = (_req: Request, res: Response) => {
+    try {
+        return res.status(200).json(recentSessions);
+    } catch (error) {
+        console.error('Error in /api/sessions/recent:', error);
+        if (error instanceof Error) {
+            return res.status(500).json({ error: 'Failed to fetch recent sessions.', details: error.message });
+        }
+        return res.status(500).json({ error: 'An unknown error occurred.' });
+    }
 };

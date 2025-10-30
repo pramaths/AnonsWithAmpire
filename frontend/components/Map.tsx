@@ -120,7 +120,7 @@ export const MapComponent = () => {
           } catch (error) {
             console.error('Failed to fetch session status:', error);
           }
-        }, 2000);
+        }, 5000);
         setPollingIntervalId(intervalId);
         
         return "Session started successfully!";
@@ -131,6 +131,11 @@ export const MapComponent = () => {
 
   const handleStopCharging = async () => {
     if (!publicKey || !activeSession) return;
+
+    // capture latest values before clearing
+    const lastEnergy = activeSession.energyUsed;
+    const lastPoints = activeSession.pointsEarned;
+    console.log('[StopCharging] sessionId=', activeSession.sessionId, 'kWh=', lastEnergy, 'points(DECH)=', lastPoints);
 
     if (pollingIntervalId) {
       clearInterval(pollingIntervalId);
@@ -164,7 +169,7 @@ export const MapComponent = () => {
                 loading: 'Please approve the transaction in your wallet...',
                 success: () => {
                     setActiveSession(null);
-                    return 'Session stopped and recorded successfully!';
+                    return `Session recorded: +${lastPoints.toFixed(2)} DECH, ${lastEnergy.toFixed(2)} kWh`;
                 },
                 error: 'Transaction failed or was rejected.'
             });
@@ -259,7 +264,7 @@ export const MapComponent = () => {
                         </div>
                         <div className="text-sm">
                                     <p>⚡️ Energy Delivered: {activeSession.energyUsed.toFixed(2)} kWh</p>
-                                    <p>💨 CO2 Saved: {activeSession.pointsEarned.toFixed(2)} kg</p>
+                                    <p>💨 CO2 Saved: {(activeSession.energyUsed * 0.5).toFixed(2)} kg</p>
                                     <p>💰 Points Earned: {activeSession.pointsEarned.toFixed(2)} DECH</p>
                                 </div>
                                 <Button

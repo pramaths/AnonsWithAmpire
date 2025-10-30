@@ -15,7 +15,7 @@ ev = "5V11nhm8AMcC8nn1VmyjqXvwLms5pGJVdVSco7FsahwX"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "/Users/pramaths/.config/solana/id.json"
 
 [scripts]

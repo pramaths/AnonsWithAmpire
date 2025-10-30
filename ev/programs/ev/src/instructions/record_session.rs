@@ -38,12 +38,8 @@ pub fn handler(
     charger_code: String,
     energy_used_milli_kwh: u64,
 ) -> Result<()> {
-    // We expect energy_used to be in milli-kWh to preserve precision.
-    // 1 DECH token = 1 kWh = 1,000 milli-kWh.
-    // Our token has 6 decimals, so 1 DECH = 1,000,000 smallest units.
-    // points = (energy_milli_kwh / 1000) * 1,000,000
-    // Simplified: points = energy_milli_kwh * 1000
-    let points = energy_used_milli_kwh.checked_mul(1000).unwrap();
+   
+    let points = energy_used_milli_kwh.checked_mul(1000000).unwrap();
 
     // Derive mint authority bump for signing
     let (mint_authority_key, mint_authority_bump) = 
@@ -77,6 +73,7 @@ pub fn handler(
     ctx.accounts.session.driver = ctx.accounts.driver.key();
     ctx.accounts.session.charger_code = charger_code.clone();
     ctx.accounts.session.energy_used = energy_used_kwh;
+    ctx.accounts.session.points_earned = points; // store minted points on the session (smallest units)
     ctx.accounts.session.timestamp = Clock::get()?.unix_timestamp;
 
     let driver_acc = &mut ctx.accounts.driver_account;

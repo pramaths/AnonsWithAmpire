@@ -186,6 +186,10 @@ describe("ev", () => {
       provider.connection,
       driverTokenAccount
     );
+    // Debug logs for minted balance
+    console.log('[Test] Mint pubkey:', mint.publicKey.toBase58());
+    console.log('[Test] Driver token account:', driverTokenAccount.toBase58());
+    console.log('[Test] Post-mint driver balance (smallest units):', tokenAccountInfo.amount.toString());
     
     // Check platform state to verify total sessions increased
     const platformStateInfo = await program.account.platformState.fetch(platformState);
@@ -194,8 +198,9 @@ describe("ev", () => {
     console.log("- Admin:", platformStateInfo.admin.toString());
     console.log("- Mint:", platformStateInfo.mint.toString());
     
-    // Energy amount is 1000 milli-kWh, so points = 1000 * 1000 = 1,000,000
-    assert.equal(tokenAccountInfo.amount.toString(), new anchor.BN(1000000).toString());
+    // Energy amount is 1000 milli-kWh, with 1 kWh = 1000 tokens and 6 decimals
+    // points_smallest = 1000 * 1_000_000 = 1,000,000,000
+    assert.equal(tokenAccountInfo.amount.toString(), new anchor.BN(1000000000).toString());
     assert.equal(platformStateInfo.totalSessions.toString(), "1");
   });
 
@@ -248,6 +253,8 @@ describe("ev", () => {
       provider.connection,
       buyerTokenAccount
     );
+    console.log('[Test] Buyer token account:', buyerTokenAccount.toBase58());
+    console.log('[Test] Buyer post-buy balance (smallest units):', buyerTokenAccountInfo.amount.toString());
     assert.equal(
       buyerTokenAccountInfo.amount.toString(),
       amountToBuy.toString()
@@ -257,10 +264,12 @@ describe("ev", () => {
       provider.connection,
       driverTokenAccount
     );
+    console.log('[Test] Driver token account:', driverTokenAccount.toBase58());
+    console.log('[Test] Driver post-sell balance (smallest units):', driverTokenAccountInfo.amount.toString());
     // Initial 1,000,000 - 50 sold = 999,950
     assert.equal(
       driverTokenAccountInfo.amount.toString(),
-      new anchor.BN(999950).toString()
+      new anchor.BN(999999950).toString()
     );
   });
 });

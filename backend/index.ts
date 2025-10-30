@@ -6,7 +6,7 @@ import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import type { Ev } from './ev.js';
 import idl from './ev.json' with { type: "json" };
-import { startSession, getSessionStatus, stopSession, getSessionHistory, getLiveSessions } from './controllers/sessions.js';
+import { startSession, getSessionStatus, stopSession, getSessionHistory, getLiveSessions, getDriverLiveSession, getRecentSessions } from './controllers/sessions.js';
 import { getAllDrivers, createDriverApprovalTransaction, buyPoints } from './controllers/drivers.js';
 import { chargePointsData } from './charge_points.js';
 import { getSustainabilityInsights } from './controllers/sustainability.js';
@@ -44,7 +44,7 @@ app.use(cors());
 app.use(express.json());
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL!;
-const PROGRAM_ID = process.env.PROGRAM_ID!;
+const PROGRAM_ID = "5V11nhm8AMcC8nn1VmyjqXvwLms5pGJVdVSco7FsahwX";
 const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY!;
 
 if (!SOLANA_RPC_URL || !PROGRAM_ID || !ADMIN_PRIVATE_KEY) {
@@ -82,6 +82,8 @@ app.get('/api/sessions/:sessionId/status', getSessionStatus);
 app.post('/api/sessions/stop', (req, res) => stopSession(req, res, program, connection));
 app.get('/api/sessions/history/:driverPublicKey', (req, res) => getSessionHistory(req, res, program));
 app.get('/api/sessions/live', getLiveSessions);
+app.get('/api/sessions/live/:driverPublicKey', getDriverLiveSession);
+app.get('/api/sessions/recent', getRecentSessions);
 
 // Driver data endpoint
 app.get('/api/drivers', (req, res) => getAllDrivers(req, res, program));
