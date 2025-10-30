@@ -43,9 +43,9 @@ const logger = winston.createLogger({
 app.use(cors());
 app.use(express.json());
 
-const SOLANA_RPC_URL = process.env['SOLANA_RPC_URL']!;
-const PROGRAM_ID = process.env['PROGRAM_ID']!;
-const ADMIN_PRIVATE_KEY = process.env['ADMIN_PRIVATE_KEY']!;
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL!;
+const PROGRAM_ID = process.env.PROGRAM_ID!;
+const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY!;
 
 if (!SOLANA_RPC_URL || !PROGRAM_ID || !ADMIN_PRIVATE_KEY) {
     throw new Error("Missing required environment variables!");
