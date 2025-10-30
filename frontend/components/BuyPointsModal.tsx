@@ -28,7 +28,7 @@ export function BuyPointsModal({ driver, onClose, onSuccess }: BuyPointsModalPro
   
   const totalCost = useMemo(() => {
     if (!amount || parseFloat(amount) <= 0) return 0;
-    return parseFloat(amount) * pricePerPointSOL;
+    return (parseFloat(amount) * pricePerPointSOL)/1000000;
   }, [amount, pricePerPointSOL]);
 
   const handleBuy = async () => {
